@@ -8,7 +8,7 @@ import Gallery from '../components/Gallery.jsx';
 // Event details — placeholder values, update as plans firm up.
 const EVENT_DETAILS = {
   venue: 'Bhubaneswar',
-  time: '5:00 PM – 10:00 PM',
+  time: '5:00 PM – 10:00 PM (TBD)',
   contactName: 'Mrunal Jena',
 };
 
