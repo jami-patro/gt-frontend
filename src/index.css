@@ -1,0 +1,44 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+body {
+  @apply bg-stone-50 text-slate-900 antialiased;
+  background-image: radial-gradient(
+      45rem 45rem at 100% -10%,
+      rgba(255, 214, 10, 0.18),
+      transparent 60%
+    ),
+    radial-gradient(38rem 38rem at -10% 5%, rgba(255, 214, 10, 0.08), transparent 55%);
+  background-attachment: fixed;
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition focus:outline-none focus:ring-2 focus:ring-brand-400 focus:ring-offset-2 focus:ring-offset-white disabled:opacity-60 disabled:cursor-not-allowed;
+  }
+  /* Primary = elegant dark pill (StatusNeo style) */
+  .btn-primary {
+    @apply btn bg-ink-950 text-white hover:bg-ink-800;
+  }
+  /* Accent = bright yellow with dark text, for the lively CTA */
+  .btn-accent {
+    @apply btn bg-brand-400 text-ink-950 hover:bg-brand-300;
+  }
+  .btn-ghost {
+    @apply btn bg-white text-slate-800 ring-1 ring-slate-200 hover:bg-slate-50;
+  }
+  .input {
+    @apply w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-400/40;
+  }
+  .label {
+    @apply mb-1.5 block text-sm font-medium text-slate-700;
+  }
+  .card {
+    @apply rounded-2xl border border-slate-200 bg-white p-5 shadow-card;
+  }
+}
