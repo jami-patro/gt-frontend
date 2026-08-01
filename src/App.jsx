@@ -11,7 +11,7 @@ export default function App() {
   return (
     <div className="min-h-screen">
       <Navbar />
-      <main className="mx-auto max-w-5xl px-4 py-6">
+      <main className="mx-auto max-w-7xl px-4 py-6">
         <Routes>
           <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<LoginPage />} />
@@ -35,7 +35,7 @@ export default function App() {
           <Route path="*" element={<LandingPage />} />
         </Routes>
       </main>
-      <footer className="mx-auto max-w-5xl px-4 py-8 text-center text-xs text-slate-400">
+      <footer className="mx-auto max-w-7xl px-4 py-8 text-center text-xs text-slate-400">
         Made with love for our batch reunion · 19 Dec 2026
       </footer>
     </div>

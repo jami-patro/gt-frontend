@@ -215,7 +215,7 @@ export default function AdminPage() {
         ) : filtered.length === 0 ? (
           <div className="p-6 text-center text-slate-400">No members found.</div>
         ) : (
-          <table className="min-w-full divide-y divide-slate-100 text-sm">
+          <table className="min-w-full divide-y divide-slate-100 text-xs">
             <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
               <tr>
                 <th className="px-4 py-3">Name</th>
