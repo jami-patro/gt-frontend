@@ -33,13 +33,28 @@ export default function LandingPage() {
   const countdown = useCountdown(event.date);
 
   useEffect(() => {
-    // Event details rarely change — fetch once.
-    api.get('/api/public/event').then((r) => setEvent(r.data)).catch(() => {});
+    // Event details rarely change — fetch once. Guard against non-JSON replies.
+    api
+      .get('/api/public/event')
+      .then((r) => {
+        if (r.data && typeof r.data === 'object' && r.data.name) setEvent(r.data);
+      })
+      .catch(() => {});
 
     // Live data — fetch now, then refresh every 15s so counts stay current.
+    // Guard against non-JSON / misshaped responses so a bad reply can never
+    // crash the page (e.g. if the API URL is misconfigured).
     const refresh = () => {
-      api.get('/api/public/stats').then((r) => setStats(r.data)).catch(() => {});
-      api.get('/api/public/attendees').then((r) => setAttendees(r.data.attendees)).catch(() => {});
+      api
+        .get('/api/public/stats')
+        .then((r) => {
+          if (r.data && typeof r.data === 'object' && r.data.food) setStats(r.data);
+        })
+        .catch(() => {});
+      api
+        .get('/api/public/attendees')
+        .then((r) => setAttendees(Array.isArray(r.data?.attendees) ? r.data.attendees : []))
+        .catch(() => {});
     };
     refresh();
     const id = setInterval(refresh, 15000);
@@ -109,7 +124,7 @@ export default function LandingPage() {
           <StatCard value={stats?.registered ?? '—'} label="Registered" accent="text-slate-900" />
         </div>
 
-        {stats && (
+        {stats?.food && (
           <div className="mt-3 grid grid-cols-3 gap-3 sm:max-w-lg">
             <StatCard value={stats.food.veg} label="Veg" accent="text-green-600" />
             <StatCard value={stats.food.nonVeg} label="Non-veg" accent="text-rose-600" />
