@@ -367,56 +367,64 @@ export default function AdminPage() {
                           onBlur={(e) =>
                             setPayment(r.id, { contributionAmount: Number(e.target.value) || 0 })
                           }
-                          className="w-16 rounded-r-lg py-1 text-sm focus:outline-none"
+                          className="w-14 rounded-r-lg py-1 text-sm focus:outline-none"
                         />
                       </div>
                       {r.paymentStatus === 'paid' ? (
                         <button
                           onClick={() => setPayment(r.id, { paymentStatus: 'not_paid' })}
-                          className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200 hover:bg-emerald-100"
-                          title="Click to mark as not paid"
+                          className="grid h-7 w-7 place-items-center rounded-full bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200 hover:bg-emerald-200"
+                          title="Paid — click to unmark"
                         >
-                          ✓ Paid
+                          ✓
                         </button>
                       ) : (
                         <button
                           onClick={() => setPayment(r.id, { paymentStatus: 'paid' })}
-                          className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200 hover:bg-slate-200"
+                          className="grid h-7 w-7 place-items-center rounded-full bg-slate-100 text-slate-400 ring-1 ring-slate-200 hover:bg-slate-200"
+                          title="Mark as paid"
                         >
-                          Mark paid
+                          ₹
                         </button>
                       )}
                     </div>
                   </td>
 
-                  {/* Actions */}
-                  <td className="px-4 py-3 text-right align-top">
+                  {/* Actions (compact icons) */}
+                  <td className="px-3 py-3 text-right align-top">
                     {isEditing ? (
-                      <div className="flex items-center justify-end gap-3">
+                      <div className="flex items-center justify-end gap-1">
                         <button
                           onClick={() => saveEdit(r.id)}
                           disabled={savingEdit}
-                          className="text-xs font-semibold text-emerald-600 hover:underline disabled:opacity-50"
+                          title="Save"
+                          className="grid h-7 w-7 place-items-center rounded-lg text-emerald-600 hover:bg-emerald-50 disabled:opacity-50"
                         >
-                          {savingEdit ? 'Saving…' : 'Save'}
+                          ✓
                         </button>
-                        <button onClick={cancelEdit} className="text-xs font-medium text-slate-500 hover:underline">
-                          Cancel
+                        <button
+                          onClick={cancelEdit}
+                          title="Cancel"
+                          className="grid h-7 w-7 place-items-center rounded-lg text-slate-500 hover:bg-slate-100"
+                        >
+                          ✕
                         </button>
                       </div>
                     ) : (
-                      <div className="flex items-center justify-end gap-3">
+                      <div className="flex items-center justify-end gap-1">
                         <button
                           onClick={() => startEdit(r)}
-                          className="text-xs font-medium text-slate-600 hover:underline"
+                          title="Edit"
+                          className="grid h-7 w-7 place-items-center rounded-lg text-slate-600 hover:bg-slate-100"
                         >
-                          Edit
+                          ✎
                         </button>
                         <button
                           onClick={() => remove(r.id, r.name)}
-                          className="text-xs font-medium text-rose-600 hover:underline"
+                          title="Remove"
+                          className="grid h-7 w-7 place-items-center rounded-lg text-rose-600 hover:bg-rose-50"
                         >
-                          Remove
+                          🗑
                         </button>
                       </div>
                     )}
