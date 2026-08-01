@@ -158,7 +158,6 @@ export default function AdminPage() {
                 <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3">Vote</th>
                 <th className="px-4 py-3">Food</th>
-                <th className="px-4 py-3">Guests</th>
                 <th className="px-4 py-3">Tee</th>
                 <th className="px-4 py-3"></th>
               </tr>
@@ -206,7 +205,6 @@ export default function AdminPage() {
                   <td className="px-4 py-3 text-slate-600">
                     {r.foodPreference === 'non_veg' ? 'Non-veg' : r.foodPreference === 'veg' ? 'Veg' : '—'}
                   </td>
-                  <td className="px-4 py-3 text-slate-600">{r.guests ?? '—'}</td>
                   <td className="px-4 py-3 text-slate-600">{r.tshirtSize || '—'}</td>
                   <td className="px-4 py-3 text-right">
                     <button

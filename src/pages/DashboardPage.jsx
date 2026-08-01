@@ -141,36 +141,21 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2">
-          {/* Guests */}
-          <div>
-            <label className="label">Guests coming with you</label>
-            <input
-              type="number"
-              min={0}
-              max={20}
-              className="input"
-              value={form.guests}
-              onChange={(e) => setForm({ ...form, guests: e.target.value })}
-            />
-          </div>
-
-          {/* T-shirt */}
-          <div>
-            <label className="label">T-shirt size</label>
-            <select
-              className="input"
-              value={form.tshirtSize}
-              onChange={(e) => setForm({ ...form, tshirtSize: e.target.value })}
-            >
-              <option value="">Select…</option>
-              {TSHIRT_SIZES.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
-          </div>
+        {/* T-shirt (guest count hidden for now) */}
+        <div>
+          <label className="label">T-shirt size</label>
+          <select
+            className="input"
+            value={form.tshirtSize}
+            onChange={(e) => setForm({ ...form, tshirtSize: e.target.value })}
+          >
+            <option value="">Select…</option>
+            {TSHIRT_SIZES.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
         </div>
 
         {/* Message */}

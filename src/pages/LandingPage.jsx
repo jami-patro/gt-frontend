@@ -5,6 +5,13 @@ import { useCountdown } from '../hooks/useCountdown.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import Gallery from '../components/Gallery.jsx';
 
+// Event details — placeholder values, update as plans firm up.
+const EVENT_DETAILS = {
+  venue: 'Bhubaneswar',
+  time: '5:00 PM – 10:00 PM',
+  contactName: 'Mrunal Jena',
+};
+
 function CountBox({ value, label }) {
   return (
     <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-3 text-center backdrop-blur">
@@ -114,6 +121,28 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* Event details */}
+      <section>
+        <h2 className="mb-4 text-xl font-bold tracking-tight text-slate-900">Event details</h2>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div className="card">
+            <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">Venue</div>
+            <div className="mt-1 font-semibold text-slate-800">📍 {EVENT_DETAILS.venue}</div>
+            <div className="mt-0.5 text-xs text-slate-400">Exact venue to be announced</div>
+          </div>
+          <div className="card">
+            <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">Time</div>
+            <div className="mt-1 font-semibold text-slate-800">🕔 {EVENT_DETAILS.time}</div>
+            <div className="mt-0.5 text-xs text-slate-400">{prettyDate}</div>
+          </div>
+          <div className="card">
+            <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">Contact</div>
+            <div className="mt-1 font-semibold text-slate-800">📞 {EVENT_DETAILS.contactName}</div>
+            <div className="mt-0.5 text-xs text-slate-400">For any queries</div>
+          </div>
+        </div>
+      </section>
+
       {/* Live stats */}
       <section>
         <h2 className="mb-4 text-xl font-bold tracking-tight text-slate-900">Live count</h2>
@@ -158,7 +187,6 @@ export default function LandingPage() {
               >
                 {a.name}
                 {a.branch && <span className="text-xs opacity-60">· {a.branch}</span>}
-                {a.guests > 0 && <span className="text-xs opacity-60">+{a.guests}</span>}
               </span>
             ))}
           </div>
