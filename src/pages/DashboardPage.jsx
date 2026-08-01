@@ -158,6 +158,18 @@ export default function DashboardPage() {
           </select>
         </div>
 
+        {/* Contribution — amount to be decided later */}
+        <div>
+          <label className="label">Contribution</label>
+          <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm">
+            <span className="text-slate-600">Contribution amount</span>
+            <span className="font-semibold text-amber-600">TBD (Later)</span>
+          </div>
+          <p className="mt-1 text-xs text-slate-400">
+            The contribution amount will be announced later. The organizers will confirm your payment.
+          </p>
+        </div>
+
         {/* Message */}
         <div>
           <label className="label">Message (optional)</label>
