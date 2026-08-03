@@ -32,11 +32,114 @@ function StatCard({ value, label, accent }) {
   );
 }
 
+function AttendeeWall({ attendees, branchFilter, setBranchFilter }) {
+  // Build the branch chip list from whoever has actually voted, with counts.
+  const branchCounts = attendees.reduce((acc, a) => {
+    const b = a.branch || 'Other';
+    acc[b] = (acc[b] || 0) + 1;
+    return acc;
+  }, {});
+  const branches = Object.keys(branchCounts).sort();
+
+  const filtered =
+    branchFilter === 'all'
+      ? attendees
+      : attendees.filter((a) => (a.branch || 'Other') === branchFilter);
+
+  return (
+    <section>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-xl font-bold tracking-tight text-slate-900">
+          Who's coming {attendees.length > 0 && `(${attendees.length})`}
+        </h2>
+      </div>
+
+      {attendees.length === 0 ? (
+        <div className="card text-center text-sm text-slate-500">
+          No votes yet — be the first to RSVP!
+        </div>
+      ) : (
+        <>
+          {/* Smart branch filter */}
+          {branches.length > 1 && (
+            <div className="mb-3 flex flex-wrap gap-2">
+              <FilterChip
+                label="All"
+                count={attendees.length}
+                active={branchFilter === 'all'}
+                onClick={() => setBranchFilter('all')}
+              />
+              {branches.map((b) => (
+                <FilterChip
+                  key={b}
+                  label={b}
+                  count={branchCounts[b]}
+                  active={branchFilter === b}
+                  onClick={() => setBranchFilter(b)}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Names — capped height so the page never grows endlessly; scrolls inside */}
+          <div className="max-h-80 overflow-y-auto rounded-2xl border border-slate-100 bg-slate-50/50 p-3">
+            {filtered.length === 0 ? (
+              <div className="py-6 text-center text-sm text-slate-500">
+                No one from {branchFilter} yet.
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {filtered.map((a, i) => (
+                  <span
+                    key={i}
+                    className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium ${
+                      a.attendance === 'yes'
+                        ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                        : 'border-amber-200 bg-amber-50 text-amber-700'
+                    }`}
+                  >
+                    {a.name}
+                    {a.branch && <span className="text-xs opacity-60">· {a.branch}</span>}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        </>
+      )}
+    </section>
+  );
+}
+
+function FilterChip({ label, count, active, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+        active
+          ? 'border-slate-900 bg-slate-900 text-white'
+          : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50'
+      }`}
+    >
+      {label}
+      <span
+        className={`rounded-full px-1.5 py-0.5 text-[10px] tabular-nums ${
+          active ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'
+        }`}
+      >
+        {count}
+      </span>
+    </button>
+  );
+}
+
 export default function LandingPage() {
   const { user } = useAuth();
   const [event, setEvent] = useState({ name: 'Batch Reunion', date: '2026-12-19' });
   const [stats, setStats] = useState(null);
   const [attendees, setAttendees] = useState([]);
+  const [branchFilter, setBranchFilter] = useState('all');
   const countdown = useCountdown(event.date);
 
   useEffect(() => {
@@ -166,32 +269,11 @@ export default function LandingPage() {
       <Gallery />
 
       {/* Attendee wall */}
-      <section>
-        <h2 className="mb-4 text-xl font-bold tracking-tight text-slate-900">
-          Who's coming {attendees.length > 0 && `(${attendees.length})`}
-        </h2>
-        {attendees.length === 0 ? (
-          <div className="card text-center text-sm text-slate-500">
-            No votes yet — be the first to RSVP!
-          </div>
-        ) : (
-          <div className="flex flex-wrap gap-2">
-            {attendees.map((a, i) => (
-              <span
-                key={i}
-                className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium ${
-                  a.attendance === 'yes'
-                    ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                    : 'border-amber-200 bg-amber-50 text-amber-700'
-                }`}
-              >
-                {a.name}
-                {a.branch && <span className="text-xs opacity-60">· {a.branch}</span>}
-              </span>
-            ))}
-          </div>
-        )}
-      </section>
+      <AttendeeWall
+        attendees={attendees}
+        branchFilter={branchFilter}
+        setBranchFilter={setBranchFilter}
+      />
     </div>
   );
 }
