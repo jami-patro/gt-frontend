@@ -5,11 +5,13 @@ import { useCountdown } from '../hooks/useCountdown.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import Gallery from '../components/Gallery.jsx';
 
-// Event details — placeholder values, update as plans firm up.
-const EVENT_DETAILS = {
+// Fallback event details if the API hasn't loaded yet. The backend
+// (/api/public/event) is the source of truth and overrides these.
+const EVENT_DETAILS_FALLBACK = {
   venue: 'Bhubaneswar',
   time: '5:00 PM – 10:00 PM (TBD)',
-  contactName: 'Mrunal Jena',
+  contacts: [{ name: 'Mrunal Jena', phone: '' }],
+  locationUrl: '',
 };
 
 function CountBox({ value, label }) {
@@ -136,7 +138,11 @@ function FilterChip({ label, count, active, onClick }) {
 
 export default function LandingPage() {
   const { user } = useAuth();
-  const [event, setEvent] = useState({ name: 'Batch Reunion', date: '2026-12-19' });
+  const [event, setEvent] = useState({
+    name: 'Batch Reunion',
+    date: '2026-12-19',
+    ...EVENT_DETAILS_FALLBACK,
+  });
   const [stats, setStats] = useState(null);
   const [attendees, setAttendees] = useState([]);
   const [branchFilter, setBranchFilter] = useState('all');
@@ -147,7 +153,9 @@ export default function LandingPage() {
     api
       .get('/api/public/event')
       .then((r) => {
-        if (r.data && typeof r.data === 'object' && r.data.name) setEvent(r.data);
+        if (r.data && typeof r.data === 'object' && r.data.name) {
+          setEvent((prev) => ({ ...prev, ...r.data }));
+        }
       })
       .catch(() => {});
 
@@ -230,17 +238,42 @@ export default function LandingPage() {
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <div className="card">
             <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">Venue</div>
-            <div className="mt-1 font-semibold text-slate-800">📍 {EVENT_DETAILS.venue}</div>
-            <div className="mt-0.5 text-xs text-slate-400">Exact venue to be announced</div>
+            <div className="mt-1 font-semibold text-slate-800">📍 {event.venue}</div>
+            {event.locationUrl ? (
+              <a
+                href={event.locationUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-0.5 inline-block text-xs font-semibold text-blue-600 hover:underline"
+              >
+                View on map →
+              </a>
+            ) : (
+              <div className="mt-0.5 text-xs text-slate-400">Exact venue to be announced</div>
+            )}
           </div>
           <div className="card">
             <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">Time</div>
-            <div className="mt-1 font-semibold text-slate-800">🕔 {EVENT_DETAILS.time}</div>
+            <div className="mt-1 font-semibold text-slate-800">🕔 {event.time}</div>
             <div className="mt-0.5 text-xs text-slate-400">{prettyDate}</div>
           </div>
           <div className="card">
             <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">Contact</div>
-            <div className="mt-1 font-semibold text-slate-800">📞 {EVENT_DETAILS.contactName}</div>
+            <div className="mt-1 space-y-0.5">
+              {(event.contacts || []).map((c, i) => (
+                <div key={i} className="font-semibold text-slate-800">
+                  📞 {c.name}
+                  {c.phone && (
+                    <>
+                      {' — '}
+                      <a href={`tel:${c.phone.replace(/[^\d+]/g, '')}`} className="text-blue-600 hover:underline">
+                        {c.phone}
+                      </a>
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
             <div className="mt-0.5 text-xs text-slate-400">For any queries</div>
           </div>
         </div>

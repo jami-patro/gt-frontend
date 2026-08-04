@@ -437,23 +437,17 @@ export default function AdminPage() {
         )}
       </div>
 
-      <EmailBroadcast />
+      <EmailBroadcast records={records} />
     </div>
   );
 }
 
-const AUDIENCE_LABELS = {
-  approved: 'Approved members',
-  all: 'Everyone registered',
-  attending: 'Attending (voted yes)',
-  pending: 'Pending approval',
-};
-
-function EmailBroadcast() {
+function EmailBroadcast({ records }) {
   const [status, setStatus] = useState(null);
-  const [audience, setAudience] = useState('approved');
   const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('');
+  const [selected, setSelected] = useState(() => new Set()); // set of emails
+  const [search, setSearch] = useState('');
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState(null);
   const [err, setErr] = useState('');
@@ -462,10 +456,47 @@ function EmailBroadcast() {
     api
       .get('/api/admin/email/status')
       .then((r) => setStatus(r.data))
-      .catch(() => setStatus({ enabled: false, audiences: {} }));
+      .catch(() => setStatus({ enabled: false }));
   }, []);
 
-  const count = status?.audiences?.[audience] ?? 0;
+  // Everyone with an email is a possible recipient.
+  const people = useMemo(
+    () => (records || []).filter((r) => r.email),
+    [records],
+  );
+
+  const branches = useMemo(
+    () => Array.from(new Set(people.map((p) => p.branch).filter(Boolean))).sort(),
+    [people],
+  );
+
+  // Helpers to add/remove a group of emails to/from the selection.
+  const addGroup = (emails) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      emails.forEach((e) => next.add(e));
+      return next;
+    });
+  const emailsWhere = (fn) => people.filter(fn).map((p) => p.email);
+
+  const toggleOne = (email) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      next.has(email) ? next.delete(email) : next.add(email);
+      return next;
+    });
+
+  const clear = () => setSelected(new Set());
+
+  const visible = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return people;
+    return people.filter((p) =>
+      [p.name, p.email, p.branch].filter(Boolean).some((v) => String(v).toLowerCase().includes(q)),
+    );
+  }, [people, search]);
+
+  const count = selected.size;
 
   const send = async () => {
     setErr('');
@@ -474,16 +505,25 @@ function EmailBroadcast() {
       setErr('Subject and message are required.');
       return;
     }
-    if (!window.confirm(`Send this email to ${count} recipient${count === 1 ? '' : 's'} (${AUDIENCE_LABELS[audience]})?`)) {
+    if (count === 0) {
+      setErr('Select at least one recipient.');
+      return;
+    }
+    if (!window.confirm(`Send this email to ${count} selected recipient${count === 1 ? '' : 's'}?`)) {
       return;
     }
     setSending(true);
     try {
-      const res = await api.post('/api/admin/broadcast', { subject, message, audience });
+      const res = await api.post('/api/admin/broadcast', {
+        subject,
+        message,
+        recipients: Array.from(selected),
+      });
       setResult(res.data);
       if (res.data.ok) {
         setSubject('');
         setMessage('');
+        setSelected(new Set());
       }
     } catch (e) {
       setErr(apiError(e, 'Send failed'));
@@ -491,6 +531,20 @@ function EmailBroadcast() {
       setSending(false);
     }
   };
+
+  const Tag = ({ label, emails }) => (
+    <button
+      type="button"
+      onClick={() => addGroup(emails)}
+      disabled={emails.length === 0}
+      className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-600 hover:border-slate-300 hover:bg-slate-50 disabled:opacity-40"
+    >
+      + {label}
+      <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] tabular-nums text-slate-500">
+        {emails.length}
+      </span>
+    </button>
+  );
 
   return (
     <div className="card space-y-4">
@@ -519,31 +573,94 @@ function EmailBroadcast() {
         </div>
       )}
 
-      <div className="grid gap-3 sm:grid-cols-2">
-        <label className="block">
-          <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">
-            Send to
-          </span>
-          <select className="input" value={audience} onChange={(e) => setAudience(e.target.value)}>
-            {Object.entries(AUDIENCE_LABELS).map(([k, label]) => (
-              <option key={k} value={k}>
-                {label} ({status?.audiences?.[k] ?? 0})
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="block">
-          <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">
-            Subject
-          </span>
-          <input
-            className="input"
-            placeholder="e.g. Venue confirmed — save the date!"
-            value={subject}
-            onChange={(e) => setSubject(e.target.value)}
-          />
-        </label>
+      {/* Quick-select tags */}
+      <div>
+        <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+          Quick add
+        </span>
+        <div className="flex flex-wrap gap-1.5">
+          <Tag label="Everyone" emails={emailsWhere(() => true)} />
+          <Tag label="Approved" emails={emailsWhere((p) => p.approved)} />
+          <Tag label="Pending" emails={emailsWhere((p) => !p.approved)} />
+          <Tag label="Yes" emails={emailsWhere((p) => p.attendance === 'yes')} />
+          <Tag label="Maybe" emails={emailsWhere((p) => p.attendance === 'maybe')} />
+          <Tag label="No" emails={emailsWhere((p) => p.attendance === 'no')} />
+          {branches.map((b) => (
+            <Tag key={b} label={b} emails={emailsWhere((p) => p.branch === b)} />
+          ))}
+        </div>
       </div>
+
+      {/* Recipient picker */}
+      <div>
+        <div className="mb-1.5 flex items-center justify-between">
+          <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Recipients — {count} selected
+          </span>
+          {count > 0 && (
+            <button onClick={clear} className="text-xs font-semibold text-rose-600 hover:underline">
+              Clear all
+            </button>
+          )}
+        </div>
+        <input
+          className="input mb-2"
+          placeholder="Search to find people to add…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+        <div className="max-h-56 overflow-y-auto rounded-xl border border-slate-100 bg-slate-50/50 p-2">
+          {visible.length === 0 ? (
+            <div className="py-4 text-center text-sm text-slate-400">No members match.</div>
+          ) : (
+            <div className="space-y-0.5">
+              {visible.map((p) => {
+                const on = selected.has(p.email);
+                return (
+                  <label
+                    key={p.id}
+                    className={`flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm ${
+                      on ? 'bg-brand-400/20' : 'hover:bg-white'
+                    }`}
+                  >
+                    <input type="checkbox" checked={on} onChange={() => toggleOne(p.email)} />
+                    <span className="font-medium text-slate-800">{p.name}</span>
+                    <span className="truncate text-xs text-slate-400">{p.email}</span>
+                    {p.branch && (
+                      <span className="ml-auto shrink-0 text-[11px] text-slate-400">{p.branch}</span>
+                    )}
+                    {p.attendance && (
+                      <span
+                        className={`shrink-0 rounded px-1.5 text-[10px] font-semibold ${
+                          p.attendance === 'yes'
+                            ? 'bg-emerald-100 text-emerald-700'
+                            : p.attendance === 'maybe'
+                              ? 'bg-amber-100 text-amber-700'
+                              : 'bg-rose-100 text-rose-700'
+                        }`}
+                      >
+                        {p.attendance}
+                      </span>
+                    )}
+                  </label>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <label className="block">
+        <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+          Subject
+        </span>
+        <input
+          className="input"
+          placeholder="e.g. Venue confirmed — save the date!"
+          value={subject}
+          onChange={(e) => setSubject(e.target.value)}
+        />
+      </label>
 
       <label className="block">
         <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -551,12 +668,13 @@ function EmailBroadcast() {
         </span>
         <textarea
           className="input min-h-[140px] resize-y"
-          placeholder={'Hi everyone,\n\nWrite your announcement here. Blank lines start a new paragraph.\n\n— Organizing team'}
+          placeholder={'Write your announcement here. Blank lines start a new paragraph.\n\n— Organizing team'}
           value={message}
           onChange={(e) => setMessage(e.target.value)}
         />
         <span className="mt-1 block text-xs text-slate-400">
-          Plain text — it's wrapped in the reunion's branded template automatically.
+          Each email is sent individually and starts with “Hi &lt;first name&gt;,” automatically —
+          no need to add a greeting. Plain text is wrapped in the reunion's branded template.
         </span>
       </label>
 
@@ -580,14 +698,14 @@ function EmailBroadcast() {
 
       <div className="flex items-center justify-between">
         <span className="text-sm text-slate-500">
-          {count} recipient{count === 1 ? '' : 's'} in <strong>{AUDIENCE_LABELS[audience]}</strong>
+          {count} recipient{count === 1 ? '' : 's'} selected
         </span>
         <button
           onClick={send}
-          disabled={sending || !status?.enabled}
+          disabled={sending || !status?.enabled || count === 0}
           className="btn-primary disabled:opacity-50"
         >
-          {sending ? 'Sending…' : 'Send email'}
+          {sending ? 'Sending…' : `Send to ${count}`}
         </button>
       </div>
     </div>
