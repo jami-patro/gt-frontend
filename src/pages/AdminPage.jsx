@@ -442,6 +442,66 @@ export default function AdminPage() {
   );
 }
 
+function RsvpConfirmationResend({ enabled }) {
+  const [sending, setSending] = useState(false);
+  const [result, setResult] = useState(null);
+  const [err, setErr] = useState('');
+
+  const run = async () => {
+    setErr('');
+    setResult(null);
+    if (
+      !window.confirm(
+        'Email their personalized RSVP status to everyone who has already responded?',
+      )
+    ) {
+      return;
+    }
+    setSending(true);
+    try {
+      const res = await api.post('/api/admin/resend-rsvp-confirmations');
+      setResult(res.data);
+    } catch (e) {
+      setErr(apiError(e, 'Send failed'));
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <div className="text-sm font-semibold text-slate-800">Send RSVP status to responders</div>
+          <div className="text-xs text-slate-500">
+            One-time: emails everyone who already RSVP'd their current status (attendance, food, tee).
+          </div>
+        </div>
+        <button
+          onClick={run}
+          disabled={sending || !enabled}
+          className="btn bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50 disabled:opacity-50"
+        >
+          {sending ? 'Sending…' : 'Send RSVP status'}
+        </button>
+      </div>
+      {err && <div className="mt-2 text-sm text-rose-600">{err}</div>}
+      {result && (
+        <div
+          className={`mt-2 rounded-lg border px-3 py-2 text-sm ${
+            result.ok
+              ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+              : 'border-amber-200 bg-amber-50 text-amber-800'
+          }`}
+        >
+          Sent to {result.sent} of {result.total} responder{result.total === 1 ? '' : 's'}.
+          {result.errors?.length > 0 && ` Some failed: ${result.errors.slice(0, 3).join('; ')}`}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function EmailBroadcast({ records }) {
   const [status, setStatus] = useState(null);
   const [subject, setSubject] = useState('');
@@ -572,6 +632,8 @@ function EmailBroadcast({ records }) {
           environment to enable sending.
         </div>
       )}
+
+      <RsvpConfirmationResend enabled={status?.enabled} />
 
       {/* Quick-select tags */}
       <div>
