@@ -437,6 +437,159 @@ export default function AdminPage() {
         )}
       </div>
 
+      <EmailBroadcast />
+    </div>
+  );
+}
+
+const AUDIENCE_LABELS = {
+  approved: 'Approved members',
+  all: 'Everyone registered',
+  attending: 'Attending (voted yes)',
+  pending: 'Pending approval',
+};
+
+function EmailBroadcast() {
+  const [status, setStatus] = useState(null);
+  const [audience, setAudience] = useState('approved');
+  const [subject, setSubject] = useState('');
+  const [message, setMessage] = useState('');
+  const [sending, setSending] = useState(false);
+  const [result, setResult] = useState(null);
+  const [err, setErr] = useState('');
+
+  useEffect(() => {
+    api
+      .get('/api/admin/email/status')
+      .then((r) => setStatus(r.data))
+      .catch(() => setStatus({ enabled: false, audiences: {} }));
+  }, []);
+
+  const count = status?.audiences?.[audience] ?? 0;
+
+  const send = async () => {
+    setErr('');
+    setResult(null);
+    if (!subject.trim() || !message.trim()) {
+      setErr('Subject and message are required.');
+      return;
+    }
+    if (!window.confirm(`Send this email to ${count} recipient${count === 1 ? '' : 's'} (${AUDIENCE_LABELS[audience]})?`)) {
+      return;
+    }
+    setSending(true);
+    try {
+      const res = await api.post('/api/admin/broadcast', { subject, message, audience });
+      setResult(res.data);
+      if (res.data.ok) {
+        setSubject('');
+        setMessage('');
+      }
+    } catch (e) {
+      setErr(apiError(e, 'Send failed'));
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <div className="card space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-lg font-bold text-slate-900">📣 Email the batch</h2>
+        {status && (
+          <span
+            className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+              status.enabled
+                ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200'
+                : 'bg-rose-50 text-rose-700 ring-1 ring-rose-200'
+            }`}
+          >
+            {status.enabled
+              ? `Email ready${status.provider ? ` · ${status.provider === 'gmail' ? 'Gmail' : 'Resend'}` : ''}`
+              : 'Not configured'}
+          </span>
+        )}
+      </div>
+
+      {status && !status.enabled && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          Set <code>GMAIL_USER</code> + <code>GMAIL_APP_PASSWORD</code> (no domain needed),
+          or <code>RESEND_API_KEY</code> + <code>EMAIL_FROM</code>, in the backend
+          environment to enable sending.
+        </div>
+      )}
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className="block">
+          <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Send to
+          </span>
+          <select className="input" value={audience} onChange={(e) => setAudience(e.target.value)}>
+            {Object.entries(AUDIENCE_LABELS).map(([k, label]) => (
+              <option key={k} value={k}>
+                {label} ({status?.audiences?.[k] ?? 0})
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Subject
+          </span>
+          <input
+            className="input"
+            placeholder="e.g. Venue confirmed — save the date!"
+            value={subject}
+            onChange={(e) => setSubject(e.target.value)}
+          />
+        </label>
+      </div>
+
+      <label className="block">
+        <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+          Message
+        </span>
+        <textarea
+          className="input min-h-[140px] resize-y"
+          placeholder={'Hi everyone,\n\nWrite your announcement here. Blank lines start a new paragraph.\n\n— Organizing team'}
+          value={message}
+          onChange={(e) => setMessage(e.target.value)}
+        />
+        <span className="mt-1 block text-xs text-slate-400">
+          Plain text — it's wrapped in the reunion's branded template automatically.
+        </span>
+      </label>
+
+      {err && (
+        <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+          {err}
+        </div>
+      )}
+      {result && (
+        <div
+          className={`rounded-lg border px-3 py-2 text-sm ${
+            result.ok
+              ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+              : 'border-amber-200 bg-amber-50 text-amber-800'
+          }`}
+        >
+          Sent to {result.sent} of {result.total} recipient{result.total === 1 ? '' : 's'}.
+          {result.errors?.length > 0 && ` Some batches failed: ${result.errors.join('; ')}`}
+        </div>
+      )}
+
+      <div className="flex items-center justify-between">
+        <span className="text-sm text-slate-500">
+          {count} recipient{count === 1 ? '' : 's'} in <strong>{AUDIENCE_LABELS[audience]}</strong>
+        </span>
+        <button
+          onClick={send}
+          disabled={sending || !status?.enabled}
+          className="btn-primary disabled:opacity-50"
+        >
+          {sending ? 'Sending…' : 'Send email'}
+        </button>
+      </div>
     </div>
   );
 }
