@@ -265,9 +265,27 @@ export default function LandingPage() {
         )
         .catch(() => {});
     };
-    refresh();
-    const id = setInterval(refresh, 15000);
-    return () => clearInterval(id);
+    // Only poll while the tab is actually visible — backgrounded tabs stop
+    // hitting the API, which keeps serverless usage low. Refresh once on load
+    // and again whenever the tab regains focus, plus every 30s while visible.
+    let id = null;
+    const start = () => {
+      if (id) return;
+      refresh();
+      id = setInterval(refresh, 30000);
+    };
+    const stop = () => {
+      if (id) clearInterval(id);
+      id = null;
+    };
+    const onVisibility = () => (document.visibilityState === 'visible' ? start() : stop());
+
+    if (document.visibilityState === 'visible') start();
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      stop();
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
   }, []);
 
   const prettyDate = new Date(event.date).toLocaleDateString('en-US', {
