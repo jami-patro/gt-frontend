@@ -34,19 +34,34 @@ function StatCard({ value, label, accent }) {
   );
 }
 
-function AttendeeWall({ attendees, branchFilter, setBranchFilter }) {
-  // Build the branch chip list from whoever has actually voted, with counts.
-  const branchCounts = attendees.reduce((acc, a) => {
+function AttendeeWall({ attendees, branchFilter, setBranchFilter, attendFilter, setAttendFilter }) {
+  // Attendance filter is applied first so the branch chip counts always
+  // reflect the currently-selected attendance group.
+  const byAttendance =
+    attendFilter === 'all' ? attendees : attendees.filter((a) => a.attendance === attendFilter);
+
+  // Build the branch chip list from whoever matches the attendance filter.
+  const branchCounts = byAttendance.reduce((acc, a) => {
     const b = a.branch || 'Other';
     acc[b] = (acc[b] || 0) + 1;
     return acc;
   }, {});
   const branches = Object.keys(branchCounts).sort();
 
+  // Attendance counts come from the full list so the tallies never change
+  // as you click around.
+  const yesCount = attendees.filter((a) => a.attendance === 'yes').length;
+  const maybeCount = attendees.filter((a) => a.attendance === 'maybe').length;
+
+  // Guard against a stale branch selection that isn't present in the current
+  // attendance subset (e.g. you picked a branch under "All", then switched to
+  // "Maybe" where nobody from that branch voted). Fall back to showing all.
+  const effectiveBranch = branchFilter !== 'all' && !branchCounts[branchFilter] ? 'all' : branchFilter;
+
   const filtered =
-    branchFilter === 'all'
-      ? attendees
-      : attendees.filter((a) => (a.branch || 'Other') === branchFilter);
+    effectiveBranch === 'all'
+      ? byAttendance
+      : byAttendance.filter((a) => (a.branch || 'Other') === effectiveBranch);
 
   return (
     <section>
@@ -62,13 +77,44 @@ function AttendeeWall({ attendees, branchFilter, setBranchFilter }) {
         </div>
       ) : (
         <>
+          {/* Attendance filter */}
+          <div className="mb-2 flex flex-wrap gap-2">
+            <FilterChip
+              label="All"
+              count={attendees.length}
+              active={attendFilter === 'all'}
+              onClick={() => {
+                setAttendFilter('all');
+                setBranchFilter('all');
+              }}
+            />
+            <FilterChip
+              label="Going"
+              count={yesCount}
+              active={attendFilter === 'yes'}
+              onClick={() => {
+                setAttendFilter('yes');
+                setBranchFilter('all');
+              }}
+            />
+            <FilterChip
+              label="Maybe"
+              count={maybeCount}
+              active={attendFilter === 'maybe'}
+              onClick={() => {
+                setAttendFilter('maybe');
+                setBranchFilter('all');
+              }}
+            />
+          </div>
+
           {/* Smart branch filter */}
           {branches.length > 1 && (
             <div className="mb-3 flex flex-wrap gap-2">
               <FilterChip
-                label="All"
-                count={attendees.length}
-                active={branchFilter === 'all'}
+                label="All branches"
+                count={byAttendance.length}
+                active={effectiveBranch === 'all'}
                 onClick={() => setBranchFilter('all')}
               />
               {branches.map((b) => (
@@ -76,7 +122,7 @@ function AttendeeWall({ attendees, branchFilter, setBranchFilter }) {
                   key={b}
                   label={b}
                   count={branchCounts[b]}
-                  active={branchFilter === b}
+                  active={effectiveBranch === b}
                   onClick={() => setBranchFilter(b)}
                 />
               ))}
@@ -87,7 +133,7 @@ function AttendeeWall({ attendees, branchFilter, setBranchFilter }) {
           <div className="max-h-80 overflow-y-auto rounded-2xl border border-slate-100 bg-slate-50/50 p-3">
             {filtered.length === 0 ? (
               <div className="py-6 text-center text-sm text-slate-500">
-                No one from {branchFilter} yet.
+                No one here yet.
               </div>
             ) : (
               <div className="flex flex-wrap gap-2">
@@ -109,6 +155,40 @@ function AttendeeWall({ attendees, branchFilter, setBranchFilter }) {
           </div>
         </>
       )}
+    </section>
+  );
+}
+
+function ContributorsWall({ contributors, count }) {
+  // Only renders when at least one person has paid. This is a positive
+  // "thank you" wall — it never shows who hasn't paid.
+  if (count === 0) return null;
+
+  return (
+    <section>
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <h2 className="text-xl font-bold tracking-tight text-slate-900">Contributors</h2>
+        <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200">
+          {count} paid 🎉
+        </span>
+      </div>
+      <div className="max-h-72 overflow-y-auto rounded-2xl border border-slate-100 bg-slate-50/50 p-3">
+        <div className="flex flex-wrap gap-2">
+          {contributors.map((c, i) => (
+            <span
+              key={i}
+              className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-sm font-medium text-emerald-700"
+            >
+              {c.name}
+              {c.branch && <span className="text-xs opacity-60">· {c.branch}</span>}
+            </span>
+          ))}
+        </div>
+      </div>
+      <p className="mt-2 text-xs text-slate-400">
+        A big thank you to everyone who has contributed. Paid your share? Ping the organizers if
+        your name isn't here yet.
+      </p>
     </section>
   );
 }
@@ -146,6 +226,8 @@ export default function LandingPage() {
   const [stats, setStats] = useState(null);
   const [attendees, setAttendees] = useState([]);
   const [branchFilter, setBranchFilter] = useState('all');
+  const [attendFilter, setAttendFilter] = useState('all');
+  const [contributors, setContributors] = useState({ count: 0, contributors: [] });
   const countdown = useCountdown(event.date);
 
   useEffect(() => {
@@ -172,6 +254,15 @@ export default function LandingPage() {
       api
         .get('/api/public/attendees')
         .then((r) => setAttendees(Array.isArray(r.data?.attendees) ? r.data.attendees : []))
+        .catch(() => {});
+      api
+        .get('/api/public/contributors')
+        .then((r) =>
+          setContributors({
+            count: r.data?.count || 0,
+            contributors: Array.isArray(r.data?.contributors) ? r.data.contributors : [],
+          }),
+        )
         .catch(() => {});
     };
     refresh();
@@ -287,6 +378,9 @@ export default function LandingPage() {
           <StatCard value={stats?.maybe ?? '—'} label="Maybe" accent="text-amber-500" />
           <StatCard value={stats?.headcount ?? '—'} label="Total headcount" accent="text-slate-900" />
           <StatCard value={stats?.registered ?? '—'} label="Registered" accent="text-slate-900" />
+          {contributors.count > 0 && (
+            <StatCard value={contributors.count} label="Contributed" accent="text-emerald-600" />
+          )}
         </div>
 
         {stats?.food && (
@@ -302,11 +396,20 @@ export default function LandingPage() {
       <Gallery />
 
       {/* Attendee wall */}
-      <AttendeeWall
-        attendees={attendees}
-        branchFilter={branchFilter}
-        setBranchFilter={setBranchFilter}
-      />
+      {/* Attendee + contributor walls, side by side on wider screens.
+          Falls back to full-width attendee wall when nobody has paid yet. */}
+      <div className={contributors.count > 0 ? 'grid grid-cols-1 gap-8 lg:grid-cols-2' : ''}>
+        <AttendeeWall
+          attendees={attendees}
+          branchFilter={branchFilter}
+          setBranchFilter={setBranchFilter}
+          attendFilter={attendFilter}
+          setAttendFilter={setAttendFilter}
+        />
+
+        {/* Contributors — public "thank you" wall (paid members only) */}
+        <ContributorsWall contributors={contributors.contributors} count={contributors.count} />
+      </div>
     </div>
   );
 }

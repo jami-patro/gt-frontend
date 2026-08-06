@@ -19,14 +19,123 @@ function Badge({ value }) {
   );
 }
 
+const PAY_BADGE = {
+  paid: ['Paid', 'bg-emerald-50 text-emerald-700 ring-emerald-200'],
+  pending: ['Review', 'bg-amber-50 text-amber-700 ring-amber-200'],
+  rejected: ['Rejected', 'bg-rose-50 text-rose-700 ring-rose-200'],
+  not_paid: ['Unpaid', 'bg-slate-100 text-slate-500 ring-slate-200'],
+};
+
+function PaymentBadge({ status }) {
+  const [label, cls] = PAY_BADGE[status] || PAY_BADGE.not_paid;
+  return <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ${cls}`}>{label}</span>;
+}
+
 export default function AdminPage() {
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [query, setQuery] = useState('');
+  const [payFilter, setPayFilter] = useState('all'); // all | paid | not_paid | pending | rejected
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 10;
   const [editingId, setEditingId] = useState(null); // row id being edited inline
   const [draft, setDraft] = useState({});
   const [savingEdit, setSavingEdit] = useState(false);
+  const [proof, setProof] = useState(null); // { name, image, note, ... } for modal
+  const [proofLoading, setProofLoading] = useState(false);
+  const [settings, setSettings] = useState(null); // { paymentOpen, paymentConfigured }
+  const [togglingPay, setTogglingPay] = useState(false);
+
+  useEffect(() => {
+    api.get('/api/admin/settings').then((r) => setSettings(r.data)).catch(() => {});
+  }, []);
+
+  const togglePaymentOpen = async () => {
+    if (!settings) return;
+    const next = !settings.paymentOpen;
+    if (
+      !window.confirm(
+        next
+          ? 'Open contributions? Batchmates will be able to pay and upload proof.'
+          : 'Close contributions? The payment section will show as "opens soon".',
+      )
+    ) {
+      return;
+    }
+    setTogglingPay(true);
+    try {
+      const r = await api.patch('/api/admin/settings/payment-open', { open: next });
+      setSettings((s) => ({ ...s, paymentOpen: r.data.paymentOpen }));
+    } catch (err) {
+      setError(apiError(err, 'Could not update payment setting'));
+    } finally {
+      setTogglingPay(false);
+    }
+  };
+
+  const toggleMethod = async (index, enabled) => {
+    try {
+      await api.patch('/api/admin/settings/payment-method', { index, enabled });
+      setSettings((s) => ({
+        ...s,
+        methods: s.methods.map((m) => (m.id === index ? { ...m, enabled } : m)),
+      }));
+    } catch (err) {
+      setError(apiError(err, 'Could not update payment method'));
+    }
+  };
+
+  const viewProof = async (id) => {
+    setProofLoading(true);
+    try {
+      const res = await api.get(`/api/admin/users/${id}/proof`);
+      setProof({ ...res.data, id });
+    } catch (err) {
+      setError(apiError(err, 'Could not load proof'));
+    } finally {
+      setProofLoading(false);
+    }
+  };
+
+  const deleteProof = async (id, name) => {
+    if (
+      !window.confirm(
+        `Delete ${name}'s submitted proof (screenshot, txn id, note) and reset them to "not paid"?`,
+      )
+    ) {
+      return;
+    }
+    try {
+      const res = await api.delete(`/api/admin/users/${id}/proof`);
+      setRecords((prev) =>
+        prev.map((r) =>
+          r.id === id
+            ? {
+                ...r,
+                paymentStatus: res.data.paymentStatus,
+                contributionAmount: res.data.contributionAmount,
+                paymentRejectReason: null,
+                hasProof: false,
+                hasProofOrTxn: false,
+                paymentTransactionId: null,
+                paymentNote: null,
+                paymentMethodUsed: null,
+              }
+            : r,
+        ),
+      );
+      setProof(null);
+    } catch (err) {
+      setError(apiError(err, 'Could not delete proof'));
+    }
+  };
+
+  const rejectPayment = (id) => {
+    const reason = window.prompt('Reason for rejection (shown to the member):', 'Screenshot unclear — please re-upload');
+    if (reason === null) return; // cancelled
+    setPayment(id, { paymentStatus: 'rejected', rejectReason: reason });
+  };
 
   const startEdit = (r) => {
     setEditingId(r.id);
@@ -57,13 +166,37 @@ export default function AdminPage() {
       .finally(() => setLoading(false));
   };
 
+  // Silent refresh — used by the manual button and the auto-poll. Skips while
+  // an inline edit is open so we don't overwrite unsaved changes.
+  const refresh = () => {
+    if (editingId) return;
+    api
+      .get('/api/admin/responses')
+      .then((r) => setRecords(r.data.records))
+      .catch(() => {});
+  };
+
   useEffect(load, []);
+
+  // Keep the list reasonably fresh so new submissions (proofs, RSVPs) show up
+  // without a manual page reload. Also refresh when the tab regains focus.
+  useEffect(() => {
+    const id = setInterval(refresh, 20000);
+    const onFocus = () => refresh();
+    window.addEventListener('focus', onFocus);
+    return () => {
+      clearInterval(id);
+      window.removeEventListener('focus', onFocus);
+    };
+  }, [editingId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Only approved members count toward attendance/food/headcount totals.
   const summary = useMemo(() => {
-    const s = { attending: 0, maybe: 0, no: 0, veg: 0, nonVeg: 0, guests: 0, pending: 0, paid: 0, collected: 0 };
+    const s = { attending: 0, maybe: 0, no: 0, veg: 0, nonVeg: 0, guests: 0, pending: 0, paid: 0, collected: 0, pendingPay: 0, unpaid: 0 };
     for (const r of records) {
       if (r.paymentStatus === 'paid') s.paid += 1;
+      if (r.paymentStatus === 'pending') s.pendingPay += 1;
+      if (!r.paymentStatus || r.paymentStatus === 'not_paid' || r.paymentStatus === 'rejected') s.unpaid += 1;
       s.collected += Number(r.contributionAmount) || 0;
       if (!r.approved) {
         s.pending += 1;
@@ -99,6 +232,7 @@ export default function AdminPage() {
                 ...r,
                 paymentStatus: res.data.paymentStatus,
                 contributionAmount: res.data.contributionAmount,
+                paymentRejectReason: res.data.paymentRejectReason ?? null,
               }
             : r,
         ),
@@ -108,15 +242,58 @@ export default function AdminPage() {
     }
   };
 
+  // How much each account/method has collected (paid contributions only).
+  const collectedByMethod = useMemo(() => {
+    const m = {};
+    for (const r of records) {
+      if (r.paymentStatus !== 'paid') continue;
+      const key = r.paymentMethodUsed || 'Unspecified';
+      if (!m[key]) m[key] = { amount: 0, count: 0 };
+      m[key].amount += Number(r.contributionAmount) || 0;
+      m[key].count += 1;
+    }
+    return Object.entries(m).sort((a, b) => b[1].amount - a[1].amount);
+  }, [records]);
+
+  // Counts per payment status, used for the filter chips.
+  const payCounts = useMemo(() => {
+    const c = { all: records.length, paid: 0, not_paid: 0, pending: 0, rejected: 0 };
+    for (const r of records) {
+      const s = r.paymentStatus || 'not_paid';
+      c[s] = (c[s] || 0) + 1;
+    }
+    return c;
+  }, [records]);
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return records;
-    return records.filter((r) =>
-      [r.name, r.email, r.branch, r.rollNumber]
+    const rows = records.filter((r) => {
+      if (payFilter !== 'all' && (r.paymentStatus || 'not_paid') !== payFilter) return false;
+      if (!q) return true;
+      return [r.name, r.email, r.branch, r.rollNumber]
         .filter(Boolean)
-        .some((v) => String(v).toLowerCase().includes(q)),
-    );
-  }, [records, query]);
+        .some((v) => String(v).toLowerCase().includes(q));
+    });
+    // Newest joiners on top, and anyone awaiting approval bubbles up first so
+    // they're easy to spot and approve.
+    return rows.sort((a, b) => {
+      if (a.approved !== b.approved) return a.approved ? 1 : -1; // pending first
+      return new Date(b.createdAt || 0) - new Date(a.createdAt || 0); // newest first
+    });
+  }, [records, query, payFilter]);
+
+  // Pagination (client-side — all records are already loaded).
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const paged = useMemo(
+    () => filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE),
+    [filtered, currentPage],
+  );
+
+  // Reset to the first page whenever the filters change.
+  useEffect(() => {
+    setPage(1);
+  }, [query, payFilter]);
 
   // Download the CSV through axios so the auth header is attached, then
   // trigger a browser download from the blob.
@@ -165,9 +342,39 @@ export default function AdminPage() {
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-extrabold text-slate-900">Admin dashboard</h1>
-        <button onClick={exportCsv} className="btn-primary">
-          Export CSV
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          {settings?.paymentConfigured && (
+            <button
+              onClick={togglePaymentOpen}
+              disabled={togglingPay}
+              className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold ring-1 transition disabled:opacity-50 ${
+                settings.paymentOpen
+                  ? 'bg-emerald-50 text-emerald-700 ring-emerald-200 hover:bg-emerald-100'
+                  : 'bg-slate-100 text-slate-600 ring-slate-200 hover:bg-slate-200'
+              }`}
+              title="Open or close contributions (takes effect immediately)"
+            >
+              <span
+                className={`h-2 w-2 rounded-full ${settings.paymentOpen ? 'bg-emerald-500' : 'bg-slate-400'}`}
+              />
+              {togglingPay
+                ? 'Saving…'
+                : settings.paymentOpen
+                ? 'Contributions: Open'
+                : 'Contributions: Closed'}
+            </button>
+          )}
+          <button
+            onClick={refresh}
+            className="btn bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50"
+            title="Reload the latest submissions"
+          >
+            ↻ Refresh
+          </button>
+          <button onClick={exportCsv} className="btn-primary">
+            Export CSV
+          </button>
+        </div>
       </div>
 
       {error && <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div>}
@@ -181,9 +388,78 @@ export default function AdminPage() {
         </div>
       )}
 
+      {/* Payment QR methods — enable/disable each without a redeploy */}
+      {settings?.paymentConfigured && settings.methods?.length > 0 && (
+        <div className="card space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-lg font-bold text-slate-900">Payment QR codes</h2>
+            <span className="text-xs text-slate-500">
+              Toggle which options batchmates see. Disable one if a QR hits a limit or has issues.
+            </span>
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {settings.methods.map((m) => (
+              <div
+                key={m.id}
+                className={`rounded-xl border p-3 text-center transition ${
+                  m.enabled ? 'border-emerald-200 bg-emerald-50/40' : 'border-slate-200 bg-slate-50 opacity-60'
+                }`}
+              >
+                <div className="text-sm font-semibold text-slate-800">{m.label || 'UPI'}</div>
+                {m.qr && (
+                  <img
+                    src={m.qr}
+                    alt={`${m.label} QR`}
+                    className={`mx-auto my-2 h-28 w-28 rounded-lg object-contain ${m.enabled ? '' : 'grayscale'}`}
+                  />
+                )}
+                {m.upiId && <div className="break-all text-xs text-slate-500">{m.upiId}</div>}
+                {m.phone && <div className="text-xs text-slate-400">📞 {m.phone}</div>}
+                <button
+                  onClick={() => toggleMethod(m.id, !m.enabled)}
+                  className={`mt-2 inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold ring-1 transition ${
+                    m.enabled
+                      ? 'bg-emerald-600 text-white ring-emerald-600 hover:bg-emerald-700'
+                      : 'bg-white text-slate-600 ring-slate-200 hover:bg-slate-100'
+                  }`}
+                >
+                  <span className={`h-2 w-2 rounded-full ${m.enabled ? 'bg-white' : 'bg-slate-400'}`} />
+                  {m.enabled ? 'Published' : 'Hidden'}
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Collected-by-account breakdown */}
+      {collectedByMethod.length > 0 && (
+        <div className="card space-y-3">
+          <h2 className="text-lg font-bold text-slate-900">Collected by account</h2>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {collectedByMethod.map(([label, v]) => (
+              <div key={label} className="rounded-xl border border-slate-200 p-3">
+                <div className="text-sm font-semibold text-slate-800">{label}</div>
+                <div className="mt-1 text-2xl font-extrabold text-emerald-600">
+                  ₹{v.amount.toLocaleString('en-IN')}
+                </div>
+                <div className="text-xs text-slate-400">
+                  {v.count} payment{v.count === 1 ? '' : 's'}
+                </div>
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-slate-400">
+            Based on confirmed (paid) contributions, grouped by whichever QR was live when each
+            member submitted.
+          </p>
+        </div>
+      )}
+
       {/* Summary */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-7">
         {[
+          ['Registered', records.length, 'text-slate-900'],
           ['Attending', summary.attending, 'text-emerald-600'],
           ['Maybe', summary.maybe, 'text-amber-500'],
           ['Not coming', summary.no, 'text-rose-600'],
@@ -192,6 +468,8 @@ export default function AdminPage() {
           ['Headcount', summary.headcount, 'text-slate-900'],
           ['Pending', summary.pending, 'text-amber-600'],
           ['Paid', summary.paid, 'text-emerald-600'],
+          ['Pay review', summary.pendingPay, 'text-amber-600'],
+          ['Not paid', summary.unpaid, 'text-rose-600'],
           ['Collected', `₹${summary.collected.toLocaleString('en-IN')}`, 'text-slate-900'],
         ].map(([label, value, accent]) => (
           <div key={label} className="card text-center">
@@ -201,12 +479,43 @@ export default function AdminPage() {
         ))}
       </div>
 
-      <input
-        className="input max-w-sm"
-        placeholder="Search name, email, branch, roll no…"
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-      />
+      <div className="flex flex-wrap items-center gap-3">
+        <input
+          className="input max-w-sm"
+          placeholder="Search name, email, branch, roll no…"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+        <div className="flex flex-wrap gap-2">
+          {[
+            ['all', 'All'],
+            ['paid', 'Paid'],
+            ['pending', 'Under review'],
+            ['rejected', 'Rejected'],
+            ['not_paid', 'Unpaid'],
+          ].map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setPayFilter(value)}
+              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                payFilter === value
+                  ? 'border-slate-900 bg-slate-900 text-white'
+                  : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50'
+              }`}
+            >
+              {label}
+              <span
+                className={`rounded-full px-1.5 py-0.5 text-[10px] tabular-nums ${
+                  payFilter === value ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'
+                }`}
+              >
+                {payCounts[value] ?? 0}
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
 
       {/* Table */}
       <div className="card overflow-x-auto p-0">
@@ -230,7 +539,7 @@ export default function AdminPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filtered.map((r) => {
+              {paged.map((r) => {
                 const isEditing = editingId === r.id;
                 return (
                 <tr key={r.id} className={r.approved ? 'hover:bg-slate-50' : 'bg-amber-50/60 hover:bg-amber-50'}>
@@ -348,45 +657,80 @@ export default function AdminPage() {
                     ) : (r.tshirtSize || '—')}
                   </td>
 
-                  {/* Payment (instant) */}
+                  {/* Payment */}
                   <td className="px-4 py-3 align-top">
-                    <div className="flex items-center gap-2">
-                      <div className="flex items-center rounded-lg ring-1 ring-slate-200">
-                        <span className="px-1.5 text-xs text-slate-400">₹</span>
-                        <input
-                          type="number"
-                          min={0}
-                          value={r.contributionAmount ?? 0}
-                          onChange={(e) =>
-                            setRecords((prev) =>
-                              prev.map((x) =>
-                                x.id === r.id ? { ...x, contributionAmount: e.target.value } : x,
-                              ),
-                            )
-                          }
-                          onBlur={(e) =>
-                            setPayment(r.id, { contributionAmount: Number(e.target.value) || 0 })
-                          }
-                          className="w-14 rounded-r-lg py-1 text-sm focus:outline-none"
-                        />
+                    <div className="space-y-1.5">
+                      <div className="flex items-center gap-2">
+                        <div className="flex items-center rounded-lg ring-1 ring-slate-200">
+                          <span className="px-1.5 text-xs text-slate-400">₹</span>
+                          <input
+                            type="number"
+                            min={0}
+                            value={r.contributionAmount ?? 0}
+                            onChange={(e) =>
+                              setRecords((prev) =>
+                                prev.map((x) =>
+                                  x.id === r.id ? { ...x, contributionAmount: e.target.value } : x,
+                                ),
+                              )
+                            }
+                            onBlur={(e) =>
+                              setPayment(r.id, { contributionAmount: Number(e.target.value) || 0 })
+                            }
+                            className="w-14 rounded-r-lg py-1 text-sm focus:outline-none"
+                          />
+                        </div>
+                        <PaymentBadge status={r.paymentStatus} />
                       </div>
-                      {r.paymentStatus === 'paid' ? (
-                        <button
-                          onClick={() => setPayment(r.id, { paymentStatus: 'not_paid' })}
-                          className="grid h-7 w-7 place-items-center rounded-full bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200 hover:bg-emerald-200"
-                          title="Paid — click to unmark"
-                        >
-                          ✓
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => setPayment(r.id, { paymentStatus: 'paid' })}
-                          className="grid h-7 w-7 place-items-center rounded-full bg-slate-100 text-slate-400 ring-1 ring-slate-200 hover:bg-slate-200"
-                          title="Mark as paid"
-                        >
-                          ₹
-                        </button>
-                      )}
+                      <div className="flex items-center gap-1">
+                        {(r.hasProofOrTxn || r.hasProof) && (
+                          <button
+                            onClick={() => viewProof(r.id)}
+                            title="View payment proof"
+                            className="rounded-lg px-1.5 py-0.5 text-[11px] font-semibold text-blue-600 hover:bg-blue-50"
+                          >
+                            🧾 Proof
+                          </button>
+                        )}
+                        {r.paymentStatus === 'paid' ? (
+                          <button
+                            onClick={() => setPayment(r.id, { paymentStatus: 'not_paid' })}
+                            className="rounded-lg px-1.5 py-0.5 text-[11px] font-semibold text-slate-500 hover:bg-slate-100"
+                            title="Unmark paid"
+                          >
+                            Unmark
+                          </button>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() =>
+                                setPayment(r.id, {
+                                  paymentStatus: 'paid',
+                                  contributionAmount: Number(r.contributionAmount) || 0,
+                                })
+                              }
+                              disabled={!(Number(r.contributionAmount) > 0)}
+                              className="rounded-lg px-1.5 py-0.5 text-[11px] font-semibold text-emerald-600 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:text-slate-300 disabled:hover:bg-transparent"
+                              title={
+                                Number(r.contributionAmount) > 0
+                                  ? 'Mark as paid'
+                                  : 'Enter an amount first'
+                              }
+                            >
+                              ✓ Paid
+                            </button>
+                            {(r.paymentStatus === 'pending' || r.hasProof) && (
+                              <button
+                                onClick={() => rejectPayment(r.id)}
+                                className="rounded-lg px-1.5 py-0.5 text-[11px] font-semibold text-rose-600 hover:bg-rose-50"
+                                title="Reject proof"
+                              >
+                                ✕ Reject
+                              </button>
+                            )}
+                          </>
+                        )}
+                      </div>
                     </div>
                   </td>
 
@@ -436,6 +780,98 @@ export default function AdminPage() {
           </table>
         )}
       </div>
+
+      {/* Pagination */}
+      {!loading && filtered.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-slate-500">
+          <div>
+            Showing{' '}
+            <span className="font-semibold text-slate-700">
+              {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, filtered.length)}
+            </span>{' '}
+            of <span className="font-semibold text-slate-700">{filtered.length}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage <= 1}
+              className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-40"
+            >
+              ← Prev
+            </button>
+            <span className="tabular-nums">
+              Page {currentPage} / {totalPages}
+            </span>
+            <button
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={currentPage >= totalPages}
+              className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-40"
+            >
+              Next →
+            </button>
+          </div>
+        </div>
+      )}
+
+      {proofLoading && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 text-white">Loading proof…</div>
+      )}
+      {proof && (
+        <div
+          className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4"
+          onClick={() => setProof(null)}
+        >
+          <div
+            className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl bg-white p-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-2 flex items-center justify-between">
+              <h3 className="font-bold text-slate-900">Payment proof — {proof.name}</h3>
+              <button onClick={() => setProof(null)} className="text-slate-400 hover:text-slate-700">
+                ✕
+              </button>
+            </div>
+            {proof.note && (
+              <div className="mb-2 rounded-lg bg-slate-50 px-3 py-2 text-sm">
+                <span className="font-semibold text-slate-700">Reference:</span>{' '}
+                <span className="break-all text-slate-600">{proof.note}</span>
+              </div>
+            )}
+            {proof.transactionId && (
+              <div className="mb-2 rounded-lg bg-blue-50 px-3 py-2 text-sm">
+                <span className="font-semibold text-blue-700">Transaction / UTR:</span>{' '}
+                <span className="break-all text-blue-800">{proof.transactionId}</span>
+              </div>
+            )}
+            {proof.methodUsed && (
+              <div className="mb-2 rounded-lg bg-slate-50 px-3 py-2 text-sm">
+                <span className="font-semibold text-slate-700">Paid to:</span>{' '}
+                <span className="text-slate-600">{proof.methodUsed}</span>
+              </div>
+            )}
+            {proof.uploadedAt && (
+              <div className="mb-2 text-xs text-slate-400">
+                Submitted {new Date(proof.uploadedAt).toLocaleString('en-IN')}
+              </div>
+            )}
+            {proof.image ? (
+              <img src={proof.image} alt="Payment proof" className="w-full rounded-lg" />
+            ) : (
+              <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-6 text-center text-sm text-slate-500">
+                No screenshot — member provided a transaction id instead.
+              </div>
+            )}
+            <div className="mt-3 border-t border-slate-100 pt-3 text-right">
+              <button
+                onClick={() => deleteProof(proof.id, proof.name)}
+                className="rounded-lg px-3 py-1.5 text-sm font-semibold text-rose-600 ring-1 ring-rose-200 hover:bg-rose-50"
+              >
+                🗑 Delete proof &amp; reset
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <EmailBroadcast records={records} />
     </div>
