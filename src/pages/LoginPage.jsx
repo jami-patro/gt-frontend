@@ -1,11 +1,13 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { apiError } from '../lib/api.js';
 
 export default function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const expired = searchParams.get('expired') === '1';
   const [form, setForm] = useState({ email: '', password: '' });
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -29,6 +31,12 @@ export default function LoginPage() {
       <div className="card">
         <h1 className="text-xl font-bold text-slate-900">Welcome back</h1>
         <p className="mt-1 text-sm text-slate-500">Log in to view or update your RSVP.</p>
+
+        {expired && !error && (
+          <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+            Your session expired. Please log in again.
+          </div>
+        )}
 
         <form onSubmit={submit} className="mt-5 space-y-4">
           {error && (
