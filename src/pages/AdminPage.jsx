@@ -181,12 +181,28 @@ export default function AdminPage() {
   // Keep the list reasonably fresh so new submissions (proofs, RSVPs) show up
   // without a manual page reload. Also refresh when the tab regains focus.
   useEffect(() => {
-    const id = setInterval(refresh, 20000);
-    const onFocus = () => refresh();
-    window.addEventListener('focus', onFocus);
+    let id = null;
+    const start = () => {
+      if (id) return;
+      id = setInterval(refresh, 30000);
+    };
+    const stop = () => {
+      if (id) clearInterval(id);
+      id = null;
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        refresh();
+        start();
+      } else {
+        stop();
+      }
+    };
+    if (document.visibilityState === 'visible') start();
+    document.addEventListener('visibilitychange', onVisibility);
     return () => {
-      clearInterval(id);
-      window.removeEventListener('focus', onFocus);
+      stop();
+      document.removeEventListener('visibilitychange', onVisibility);
     };
   }, [editingId]); // eslint-disable-line react-hooks/exhaustive-deps
 
