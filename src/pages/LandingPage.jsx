@@ -14,6 +14,22 @@ const EVENT_DETAILS_FALLBACK = {
   locationUrl: '',
 };
 
+// Parse a `YYYY-MM-DD` string as a LOCAL date (midnight in the viewer's own
+// timezone). `new Date('2026-12-19')` would parse as UTC midnight, which then
+// rolls back a day for anyone west of UTC (e.g. the US) when formatted with
+// toLocaleDateString — showing "Dec 18" instead of "Dec 19". Building the date
+// from explicit parts keeps it stable in every timezone. Falls back to the
+// native parser for any other date shape the API might send.
+function parseEventDate(value) {
+  if (typeof value === 'string') {
+    const m = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (m) {
+      return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+    }
+  }
+  return new Date(value);
+}
+
 function CountBox({ value, label }) {
   return (
     <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-3 text-center backdrop-blur">
@@ -228,7 +244,7 @@ export default function LandingPage() {
   const [branchFilter, setBranchFilter] = useState('all');
   const [attendFilter, setAttendFilter] = useState('all');
   const [contributors, setContributors] = useState({ count: 0, contributors: [] });
-  const countdown = useCountdown(event.date);
+  const countdown = useCountdown(parseEventDate(event.date));
 
   useEffect(() => {
     // Event details rarely change — fetch once. Guard against non-JSON replies.
@@ -288,7 +304,7 @@ export default function LandingPage() {
     };
   }, []);
 
-  const prettyDate = new Date(event.date).toLocaleDateString('en-US', {
+  const prettyDate = parseEventDate(event.date).toLocaleDateString('en-US', {
     weekday: 'long',
     year: 'numeric',
     month: 'long',
