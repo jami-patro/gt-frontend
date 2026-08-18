@@ -960,6 +960,7 @@ function EmailBroadcast({ records }) {
   const [message, setMessage] = useState('');
   const [selected, setSelected] = useState(() => new Set()); // set of emails
   const [search, setSearch] = useState('');
+  const [showSelectedOnly, setShowSelectedOnly] = useState(false);
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState(null);
   const [err, setErr] = useState('');
@@ -998,15 +999,29 @@ function EmailBroadcast({ records }) {
       return next;
     });
 
-  const clear = () => setSelected(new Set());
+  const clear = () => {
+    setSelected(new Set());
+    setShowSelectedOnly(false);
+  };
 
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return people;
-    return people.filter((p) =>
-      [p.name, p.email, p.branch].filter(Boolean).some((v) => String(v).toLowerCase().includes(q)),
-    );
-  }, [people, search]);
+    let list = people;
+    if (q) {
+      list = list.filter((p) =>
+        [p.name, p.email, p.branch].filter(Boolean).some((v) => String(v).toLowerCase().includes(q)),
+      );
+    }
+    // "Selected only" narrows the list to the current recipients so you can
+    // verify exactly who a tag added without scrolling the whole batch.
+    if (showSelectedOnly) list = list.filter((p) => selected.has(p.email));
+    // Float selected people to the top so they're easy to spot at a glance.
+    return [...list].sort((a, b) => {
+      const aSel = selected.has(a.email) ? 0 : 1;
+      const bSel = selected.has(b.email) ? 0 : 1;
+      return aSel - bSel;
+    });
+  }, [people, search, showSelectedOnly, selected]);
 
   const count = selected.size;
 
@@ -1099,6 +1114,12 @@ function EmailBroadcast({ records }) {
           <Tag label="Yes" emails={emailsWhere((p) => p.attendance === 'yes')} />
           <Tag label="Maybe" emails={emailsWhere((p) => p.attendance === 'maybe')} />
           <Tag label="No" emails={emailsWhere((p) => p.attendance === 'no')} />
+          {/* Payment-status groups — handy for one-click reminder blasts to
+              whoever hasn't contributed yet. */}
+          <Tag label="Unpaid" emails={emailsWhere((p) => (p.paymentStatus || 'not_paid') === 'not_paid')} />
+          <Tag label="Pay review" emails={emailsWhere((p) => p.paymentStatus === 'pending')} />
+          <Tag label="Rejected" emails={emailsWhere((p) => p.paymentStatus === 'rejected')} />
+          <Tag label="Paid" emails={emailsWhere((p) => p.paymentStatus === 'paid')} />
           {branches.map((b) => (
             <Tag key={b} label={b} emails={emailsWhere((p) => p.branch === b)} />
           ))}
@@ -1111,11 +1132,24 @@ function EmailBroadcast({ records }) {
           <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
             Recipients — {count} selected
           </span>
-          {count > 0 && (
-            <button onClick={clear} className="text-xs font-semibold text-rose-600 hover:underline">
-              Clear all
-            </button>
-          )}
+          <div className="flex items-center gap-3">
+            {count > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowSelectedOnly((v) => !v)}
+                className={`text-xs font-semibold hover:underline ${
+                  showSelectedOnly ? 'text-brand-600' : 'text-slate-500'
+                }`}
+              >
+                {showSelectedOnly ? 'Show all' : `Show selected (${count})`}
+              </button>
+            )}
+            {count > 0 && (
+              <button onClick={clear} className="text-xs font-semibold text-rose-600 hover:underline">
+                Clear all
+              </button>
+            )}
+          </div>
         </div>
         <input
           className="input mb-2"
