@@ -12,6 +12,13 @@ const EVENT_DETAILS_FALLBACK = {
   time: '5:00 PM – 10:00 PM (TBD)',
   contacts: [{ name: 'Mrunal Jena', phone: '' }],
   locationUrl: '',
+  // Programme / running order for the day. The backend (/api/public/event)
+  // is the source of truth and overrides this.
+  schedule: [
+    { time: '12:30 PM', title: 'Meet & Greet with Lunch', description: 'Reconnect over a warm welcome lunch.' },
+    { time: '4:30 PM', title: 'Evening Snacks', description: 'Tea, snacks and plenty of catching up.' },
+    { time: '7:00 PM', title: 'DJ Night & Dinner', description: 'Music, dance and dinner to close the day.' },
+  ],
 };
 
 // Parse a `YYYY-MM-DD` string as a LOCAL date (midnight in the viewer's own
@@ -41,6 +48,44 @@ function CountBox({ value, label }) {
   );
 }
 
+function ProgrammeTimeline({ schedule }) {
+  if (!Array.isArray(schedule) || schedule.length === 0) return null;
+
+  return (
+    <section>
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <h2 className="text-xl font-bold tracking-tight text-slate-900">Programme for the day</h2>
+        <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700 ring-1 ring-amber-200">
+          Tentative · being finalized
+        </span>
+      </div>
+      <div className="card">
+        <p className="mb-4 rounded-lg bg-amber-50/70 px-3 py-2 text-xs text-amber-700">
+          ⏳ The full schedule for the day is still being worked out — timings and activities are
+          <strong> tentative (TBD)</strong> and may change. We'll update this as details are confirmed.
+        </p>
+        <ol className="relative space-y-6 border-l-2 border-brand-200 pl-6">
+          {schedule.map((item, i) => (
+            <li key={i} className="relative">
+              {/* Timeline dot */}
+              <span className="absolute -left-[31px] top-1 grid h-4 w-4 place-items-center rounded-full bg-brand-400 ring-4 ring-brand-100" />
+              {item.time && (
+                <div className="text-xs font-semibold uppercase tracking-wide text-brand-600">
+                  {item.time}
+                </div>
+              )}
+              <div className="mt-0.5 font-semibold text-slate-900">{item.title}</div>
+              {item.description && (
+                <div className="mt-0.5 text-sm text-slate-500">{item.description}</div>
+              )}
+            </li>
+          ))}
+        </ol>
+      </div>
+    </section>
+  );
+}
+
 function StatCard({ value, label, accent }) {
   return (
     <div className="card text-center transition hover:-translate-y-0.5 hover:shadow-lg">
@@ -51,13 +96,25 @@ function StatCard({ value, label, accent }) {
 }
 
 function AttendeeWall({ attendees, branchFilter, setBranchFilter, attendFilter, setAttendFilter }) {
+  // "Paid only" is an independent toggle layered on top of the attendance
+  // filter. Kept local since it doesn't need to survive a full remount.
+  const [paidOnly, setPaidOnly] = useState(false);
+
   // Attendance filter is applied first so the branch chip counts always
   // reflect the currently-selected attendance group.
   const byAttendance =
     attendFilter === 'all' ? attendees : attendees.filter((a) => a.attendance === attendFilter);
 
-  // Build the branch chip list from whoever matches the attendance filter.
-  const branchCounts = byAttendance.reduce((acc, a) => {
+  // How many of the current attendance group have contributed — drives the
+  // "Paid" chip count.
+  const paidCount = byAttendance.filter((a) => a.paid).length;
+
+  // Layer the paid-only toggle on top before computing branch chips so the
+  // branch counts stay in sync with what's actually shown.
+  const byPaid = paidOnly ? byAttendance.filter((a) => a.paid) : byAttendance;
+
+  // Build the branch chip list from whoever matches the active filters.
+  const branchCounts = byPaid.reduce((acc, a) => {
     const b = a.branch || 'Other';
     acc[b] = (acc[b] || 0) + 1;
     return acc;
@@ -76,8 +133,8 @@ function AttendeeWall({ attendees, branchFilter, setBranchFilter, attendFilter, 
 
   const filtered =
     effectiveBranch === 'all'
-      ? byAttendance
-      : byAttendance.filter((a) => (a.branch || 'Other') === effectiveBranch);
+      ? byPaid
+      : byPaid.filter((a) => (a.branch || 'Other') === effectiveBranch);
 
   return (
     <section>
@@ -119,6 +176,17 @@ function AttendeeWall({ attendees, branchFilter, setBranchFilter, attendFilter, 
               active={attendFilter === 'maybe'}
               onClick={() => {
                 setAttendFilter('maybe');
+                setBranchFilter('all');
+              }}
+            />
+            {/* Independent "contributed" toggle — positive-only, never shows
+                who hasn't paid. */}
+            <FilterChip
+              label="💚 Paid"
+              count={paidCount}
+              active={paidOnly}
+              onClick={() => {
+                setPaidOnly((v) => !v);
                 setBranchFilter('all');
               }}
             />
@@ -164,6 +232,14 @@ function AttendeeWall({ attendees, branchFilter, setBranchFilter, attendFilter, 
                   >
                     {a.name}
                     {a.branch && <span className="text-xs opacity-60">· {a.branch}</span>}
+                    {a.paid && (
+                      <span
+                        className="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700"
+                        title="Contributed"
+                      >
+                        ✓ Paid
+                      </span>
+                    )}
                   </span>
                 ))}
               </div>
@@ -403,6 +479,9 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
+
+      {/* Programme / running order for the day */}
+      <ProgrammeTimeline schedule={event.schedule} />
 
       {/* Live stats */}
       <section>
