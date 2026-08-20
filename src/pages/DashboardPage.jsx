@@ -448,9 +448,20 @@ function ContributionSection({ userName }) {
 
             {err && <div className="text-sm text-rose-600">{err}</div>}
             {done && <div className="text-sm font-medium text-emerald-600">Submitted — under review ✓</div>}
-            <button onClick={submit} disabled={busy} className="btn-primary disabled:opacity-50">
+            {/* Require a screenshot OR a transaction id (plus the note) before
+                the submit button is enabled — no more empty submissions. */}
+            <button
+              onClick={submit}
+              disabled={busy || (!file && !txnId.trim()) || !note.trim()}
+              className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+            >
               {busy ? 'Submitting…' : 'Submit payment proof'}
             </button>
+            {(!file && !txnId.trim()) && (
+              <p className="text-xs font-medium text-rose-500">
+                Add a payment screenshot or the transaction / UTR id to submit.
+              </p>
+            )}
             <p className="text-xs text-slate-400">
               If you paid from someone else's account, mention whose in the note so we can match it.
             </p>
