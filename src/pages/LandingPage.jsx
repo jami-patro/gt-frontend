@@ -474,7 +474,7 @@ export default function LandingPage() {
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <div className="card">
             <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">Venue</div>
-            <div className="mt-1 font-semibold text-slate-800">📍 {event.venue}</div>
+            <div className="mt-1 font-bold text-brand-700">📍 {event.venue}</div>
             {event.locationUrl ? (
               <a
                 href={event.locationUrl}
@@ -500,14 +500,14 @@ export default function LandingPage() {
           </div>
           <div className="card">
             <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">Time</div>
-            <div className="mt-1 font-semibold text-slate-800">🕔 {event.time}</div>
+            <div className="mt-1 font-bold text-brand-700">🕔 {event.time}</div>
             <div className="mt-0.5 text-xs text-slate-400">{prettyDate}</div>
           </div>
           <div className="card">
             <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">Contact</div>
             <div className="mt-1 space-y-0.5">
               {(event.contacts || []).map((c, i) => (
-                <div key={i} className="font-semibold text-slate-800">
+                <div key={i} className="font-bold text-brand-700">
                   📞 {c.name}
                   {c.phone && (
                     <>
