@@ -404,6 +404,24 @@ export default function AdminPage() {
         </div>
       )}
 
+      {/* Payments awaiting review banner — click to filter the list down to them */}
+      {summary.pendingPay > 0 && (
+        <button
+          type="button"
+          onClick={() => setPayFilter('pending')}
+          className="flex w-full items-center justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-left text-sm text-amber-900 transition hover:bg-amber-100"
+        >
+          <span>
+            💰 <span className="font-semibold">{summary.pendingPay}</span> payment
+            {summary.pendingPay > 1 ? 's are' : ' is'} <strong>under review</strong>. Verify the
+            proof and mark as paid.
+          </span>
+          <span className="shrink-0 rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-bold text-white">
+            Review now →
+          </span>
+        </button>
+      )}
+
       {/* Payment QR methods — enable/disable each without a redeploy */}
       {settings?.paymentConfigured && settings.methods?.length > 0 && (
         <div className="card space-y-3">
@@ -484,7 +502,7 @@ export default function AdminPage() {
           ['Headcount', summary.headcount, 'text-slate-900'],
           ['Pending', summary.pending, 'text-amber-600'],
           ['Paid', summary.paid, 'text-emerald-600'],
-          ['Pay review', summary.pendingPay, 'text-amber-600'],
+          ['Under review', summary.pendingPay, 'text-amber-600'],
           ['Not paid', summary.unpaid, 'text-rose-600'],
           ['Collected', `₹${summary.collected.toLocaleString('en-IN')}`, 'text-slate-900'],
         ].map(([label, value, accent]) => (
