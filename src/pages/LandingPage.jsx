@@ -15,9 +15,16 @@ const EVENT_DETAILS_FALLBACK = {
   // Programme / running order for the day. The backend (/api/public/event)
   // is the source of truth and overrides this.
   schedule: [
-    { time: '12:30 PM', title: 'Meet & Greet with Lunch', description: 'Reconnect over a warm welcome lunch.' },
-    { time: '4:30 PM', title: 'Evening Snacks', description: 'Tea, snacks and plenty of catching up.' },
-    { time: '7:00 PM', title: 'DJ Night & Dinner', description: 'Music, dance and dinner to close the day.' },
+    { time: '1:00 – 2:00 PM', title: '🍽️ Welcome Drinks, Lunch, Registration & T-Shirt Distribution' },
+    { time: '2:00 – 2:45 PM', title: '🎤 Welcome & Ice Breaker' },
+    { time: '2:45 – 3:30 PM', title: '📸 Guess Who? — Old Photo Slider' },
+    { time: '3:30 – 4:15 PM', title: '😂 Fun Games' },
+    { time: '4:15 – 5:00 PM', title: '❤️ Old Memories Session' },
+    { time: '5:00 – 5:30 PM', title: '☕ Tea & Snacks' },
+    { time: '5:30 – 6:15 PM', title: '🎭 Cultural & Fun Performances' },
+    { time: '7:00 – 7:45 PM', title: '🏅 Awards, Souvenirs & Reunion Moments' },
+    { time: '7:45 – 8:30 PM', title: '🎤 Open Mic & Friendship Time' },
+    { time: '8:30 PM onwards', title: '💃 Music, Dance & Grand Closing' },
   ],
 };
 
@@ -53,17 +60,8 @@ function ProgrammeTimeline({ schedule }) {
 
   return (
     <section>
-      <div className="mb-4 flex flex-wrap items-center gap-2">
-        <h2 className="text-xl font-bold tracking-tight text-slate-900">Programme for the day</h2>
-        <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700 ring-1 ring-amber-200">
-          Tentative · being finalized
-        </span>
-      </div>
+      <h2 className="mb-4 text-xl font-bold tracking-tight text-slate-900">Programme for the day</h2>
       <div className="card">
-        <p className="mb-4 rounded-lg bg-amber-50/70 px-3 py-2 text-xs text-amber-700">
-          ⏳ The full schedule for the day is still being worked out — timings and activities are
-          <strong> tentative (TBD)</strong> and may change. We'll update this as details are confirmed.
-        </p>
         <ol className="relative space-y-6 border-l-2 border-brand-200 pl-6">
           {schedule.map((item, i) => (
             <li key={i} className="relative">
@@ -285,6 +283,34 @@ function ContributorsWall({ contributors, count }) {
   );
 }
 
+function ContributionCTA({ amount, note, user }) {
+  // Only show once an amount is configured.
+  if (!amount || amount <= 0) return null;
+
+  return (
+    <section className="relative overflow-hidden rounded-[28px] bg-ink-950 p-6 text-white shadow-card sm:p-10">
+      <div className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full bg-brand-400/40 blur-[90px]" />
+      <div className="relative flex flex-col items-start gap-5 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <span className="inline-flex items-center gap-2 rounded-full border border-brand-400/30 bg-brand-400/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-brand-300">
+            Contribution
+          </span>
+          <div className="mt-3 text-3xl font-extrabold sm:text-4xl">
+            ₹{Number(amount).toLocaleString('en-IN')}
+            <span className="ml-2 align-middle text-sm font-medium text-slate-400">per person</span>
+          </div>
+          <p className="mt-2 max-w-md text-sm text-slate-400">
+            {note || 'Your contribution covers venue, food, T-shirt and souvenirs. Log in to pay and upload your payment proof.'}
+          </p>
+        </div>
+        <Link to={user ? '/dashboard' : '/login'} className="btn-accent shrink-0">
+          {user ? 'Contribute now' : 'Log in to contribute'}
+        </Link>
+      </div>
+    </section>
+  );
+}
+
 function FilterChip({ label, count, active, onClick }) {
   return (
     <button
@@ -320,6 +346,7 @@ export default function LandingPage() {
   const [branchFilter, setBranchFilter] = useState('all');
   const [attendFilter, setAttendFilter] = useState('all');
   const [contributors, setContributors] = useState({ count: 0, contributors: [] });
+  const [payment, setPayment] = useState(null); // { amount, note, enabled, ... }
   const countdown = useCountdown(parseEventDate(event.date));
 
   useEffect(() => {
@@ -330,6 +357,14 @@ export default function LandingPage() {
         if (r.data && typeof r.data === 'object' && r.data.name) {
           setEvent((prev) => ({ ...prev, ...r.data }));
         }
+      })
+      .catch(() => {});
+
+    // Contribution amount + note (public info). Fetched once.
+    api
+      .get('/api/public/payment')
+      .then((r) => {
+        if (r.data && typeof r.data === 'object') setPayment(r.data);
       })
       .catch(() => {});
 
@@ -452,6 +487,16 @@ export default function LandingPage() {
             ) : (
               <div className="mt-0.5 text-xs text-slate-400">Exact venue to be announced</div>
             )}
+            {event.videoUrl && (
+              <a
+                href={event.videoUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-0.5 block text-xs font-semibold text-rose-600 hover:underline"
+              >
+                ▶ Watch venue tour
+              </a>
+            )}
           </div>
           <div className="card">
             <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">Time</div>
@@ -482,6 +527,9 @@ export default function LandingPage() {
 
       {/* Programme / running order for the day */}
       <ProgrammeTimeline schedule={event.schedule} />
+
+      {/* Contribution CTA — links to login/dashboard to pay */}
+      <ContributionCTA amount={payment?.amount} note={payment?.note} user={user} />
 
       {/* Live stats */}
       <section>
