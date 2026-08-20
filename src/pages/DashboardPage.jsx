@@ -350,11 +350,33 @@ function ContributionSection({ userName }) {
                   <div className="text-center text-xs text-slate-400">{m.payeeName}</div>
                 )}
 
-                {/* Option 1 — scan the QR */}
-                {m.qr && (
+                {/* Option 1 — pay in one tap (opens the UPI app on this phone) */}
+                {m.upiId && (
                   <div className="mt-3">
                     <div className="text-center text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      Option 1 · Scan QR
+                      Option 1 · Pay in one tap
+                    </div>
+                    <a
+                      href={`upi://pay?pa=${encodeURIComponent(m.upiId)}&pn=${encodeURIComponent(
+                        m.payeeName || m.label || 'OEC Reunion',
+                      )}${cfg.amount > 0 ? `&am=${cfg.amount}` : ''}&cu=INR&tn=${encodeURIComponent(
+                        'OEC Silver Jubilee Reunion Contribution',
+                      )}`}
+                      className="mt-2 block rounded-lg bg-emerald-600 px-3 py-2.5 text-center text-sm font-bold text-white hover:bg-emerald-700"
+                    >
+                      📲 Pay {amountLabel} now
+                    </a>
+                    <p className="mt-1 text-center text-[11px] text-slate-400">
+                      Opens your UPI app (GPay / PhonePe / Paytm) with details pre-filled. Best on mobile.
+                    </p>
+                  </div>
+                )}
+
+                {/* Option 2 — scan the QR */}
+                {m.qr && (
+                  <div className="mt-3 border-t border-slate-100 pt-3">
+                    <div className="text-center text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      Option 2 · Scan QR
                     </div>
                     <button
                       type="button"
@@ -374,11 +396,11 @@ function ContributionSection({ userName }) {
                   </div>
                 )}
 
-                {/* Option 2 — pay to number / UPI id directly */}
+                {/* Option 3 — pay to number / UPI id directly */}
                 {(m.phone || m.upiId) && (
                   <div className="mt-3 border-t border-slate-100 pt-3">
                     <div className="text-center text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      Option 2 · Pay directly
+                      Option 3 · Pay directly
                     </div>
                     {m.phone && (
                       <div className="mt-1 text-center text-sm text-slate-700">
