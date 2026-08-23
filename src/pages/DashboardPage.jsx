@@ -38,6 +38,8 @@ export default function DashboardPage() {
     guests: 0,
     tshirtSize: '',
     message: '',
+    accommodationNeeded: false,
+    accommodationType: 'single',
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -56,6 +58,8 @@ export default function DashboardPage() {
             guests: x.guests ?? 0,
             tshirtSize: x.tshirtSize || '',
             message: x.message || '',
+            accommodationNeeded: Boolean(x.accommodationNeeded),
+            accommodationType: x.accommodationType || 'single',
           });
         }
       })
@@ -73,6 +77,7 @@ export default function DashboardPage() {
         ...form,
         tshirtSize: form.tshirtSize || null,
         guests: Number(form.guests) || 0,
+        accommodationType: form.accommodationNeeded ? form.accommodationType : null,
       });
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
@@ -157,6 +162,51 @@ export default function DashboardPage() {
               </option>
             ))}
           </select>
+        </div>
+
+        {/* Accommodation help (for out-of-town batchmates) */}
+        <div>
+          <label className="label">Need accommodation help in Bhubaneswar?</label>
+          <div className="flex gap-2">
+            <OptionButton
+              tone="emerald"
+              active={form.accommodationNeeded === true}
+              onClick={() => setForm({ ...form, accommodationNeeded: true })}
+            >
+              Yes, please
+            </OptionButton>
+            <OptionButton
+              tone="rose"
+              active={form.accommodationNeeded === false}
+              onClick={() => setForm({ ...form, accommodationNeeded: false })}
+            >
+              No, I'm sorted
+            </OptionButton>
+          </div>
+          {form.accommodationNeeded && (
+            <div className="mt-3">
+              <label className="label">Room type</label>
+              <div className="flex gap-2">
+                <OptionButton
+                  tone="emerald"
+                  active={form.accommodationType === 'single'}
+                  onClick={() => setForm({ ...form, accommodationType: 'single' })}
+                >
+                  🧍 Single person
+                </OptionButton>
+                <OptionButton
+                  tone="emerald"
+                  active={form.accommodationType === 'family'}
+                  onClick={() => setForm({ ...form, accommodationType: 'family' })}
+                >
+                  👨‍👩‍👧 Family room
+                </OptionButton>
+              </div>
+              <p className="mt-1 text-xs text-slate-400">
+                We'll try to help arrange a stay. The organizers will reach out with options.
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Message */}

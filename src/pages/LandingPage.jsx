@@ -94,25 +94,27 @@ function StatCard({ value, label, accent }) {
 }
 
 function AttendeeWall({ attendees, branchFilter, setBranchFilter, attendFilter, setAttendFilter }) {
-  // "Paid only" is an independent toggle layered on top of the attendance
-  // filter. Kept local since it doesn't need to survive a full remount.
+  // "Paid only" / "Needs stay" are independent toggles layered on top of the
+  // attendance filter. Kept local since they don't need to survive a remount.
   const [paidOnly, setPaidOnly] = useState(false);
+  const [stayOnly, setStayOnly] = useState(false);
 
   // Attendance filter is applied first so the branch chip counts always
   // reflect the currently-selected attendance group.
   const byAttendance =
     attendFilter === 'all' ? attendees : attendees.filter((a) => a.attendance === attendFilter);
 
-  // How many of the current attendance group have contributed — drives the
-  // "Paid" chip count.
+  // Chip counts for the current attendance group.
   const paidCount = byAttendance.filter((a) => a.paid).length;
+  const stayCount = byAttendance.filter((a) => a.needsStay).length;
 
-  // Layer the paid-only toggle on top before computing branch chips so the
-  // branch counts stay in sync with what's actually shown.
+  // Layer the paid-only and needs-stay toggles on top before computing branch
+  // chips so the branch counts stay in sync with what's actually shown.
   const byPaid = paidOnly ? byAttendance.filter((a) => a.paid) : byAttendance;
+  const byStay = stayOnly ? byPaid.filter((a) => a.needsStay) : byPaid;
 
   // Build the branch chip list from whoever matches the active filters.
-  const branchCounts = byPaid.reduce((acc, a) => {
+  const branchCounts = byStay.reduce((acc, a) => {
     const b = a.branch || 'Other';
     acc[b] = (acc[b] || 0) + 1;
     return acc;
@@ -131,8 +133,8 @@ function AttendeeWall({ attendees, branchFilter, setBranchFilter, attendFilter, 
 
   const filtered =
     effectiveBranch === 'all'
-      ? byPaid
-      : byPaid.filter((a) => (a.branch || 'Other') === effectiveBranch);
+      ? byStay
+      : byStay.filter((a) => (a.branch || 'Other') === effectiveBranch);
 
   return (
     <section>
@@ -188,6 +190,16 @@ function AttendeeWall({ attendees, branchFilter, setBranchFilter, attendFilter, 
                 setBranchFilter('all');
               }}
             />
+            {/* Needs accommodation help (travelling in). */}
+            <FilterChip
+              label="🏨 Needs stay"
+              count={stayCount}
+              active={stayOnly}
+              onClick={() => {
+                setStayOnly((v) => !v);
+                setBranchFilter('all');
+              }}
+            />
           </div>
 
           {/* Smart branch filter */}
@@ -236,6 +248,14 @@ function AttendeeWall({ attendees, branchFilter, setBranchFilter, attendFilter, 
                         title="Contributed"
                       >
                         ✓ Paid
+                      </span>
+                    )}
+                    {a.needsStay && (
+                      <span
+                        className="rounded-full bg-indigo-100 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-700"
+                        title="Needs accommodation help"
+                      >
+                        🏨 Stay
                       </span>
                     )}
                   </span>
