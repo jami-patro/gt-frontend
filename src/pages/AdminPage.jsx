@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { QRCodeSVG } from 'qrcode.react';
 import { api, apiError } from '../lib/api.js';
 
 const BRANCHES = ['Computer Science', 'Electrical', 'Mechanical', 'Civil', 'Electronics'];
@@ -31,12 +32,37 @@ function PaymentBadge({ status }) {
   return <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ${cls}`}>{label}</span>;
 }
 
+// Compact event-day redemption badges (from QR scans). Green = done.
+function PassCell({ pass }) {
+  const p = pass || {};
+  const drinks = Number(p.drinks) || 0;
+  const chip = (done, title, content) => (
+    <span
+      title={title}
+      className={`inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-[11px] font-semibold ${
+        done ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200' : 'bg-slate-50 text-slate-300 ring-1 ring-slate-200'
+      }`}
+    >
+      {content}
+    </span>
+  );
+  return (
+    <div className="flex flex-wrap gap-1">
+      {chip(p.checkedIn, p.checkedIn ? 'Checked in' : 'Not checked in', '✅')}
+      {chip(p.tshirt, p.tshirt ? 'T-shirt collected' : 'T-shirt pending', '👕')}
+      {chip(p.souvenir, p.souvenir ? 'Souvenir collected' : 'Souvenir pending', '🎁')}
+      {chip(drinks > 0, `Drinks: ${drinks}/2`, `🥤${drinks}`)}
+    </div>
+  );
+}
+
 export default function AdminPage() {
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [query, setQuery] = useState('');
   const [payFilter, setPayFilter] = useState('all'); // all | paid | not_paid | pending | rejected
+  const [checkinFilter, setCheckinFilter] = useState('all'); // all | in | out
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 10;
   const [editingId, setEditingId] = useState(null); // row id being edited inline
@@ -271,6 +297,22 @@ export default function AdminPage() {
     return Object.entries(m).sort((a, b) => b[1].amount - a[1].amount);
   }, [records]);
 
+  // Live event-day redemption stats (from QR scans). Denominator is paid
+  // members, since only paid members get a pass.
+  const eventStats = useMemo(() => {
+    const s = { paid: 0, checkedIn: 0, tshirt: 0, souvenir: 0, drinks: 0, anyScan: 0 };
+    for (const r of records) {
+      if (r.paymentStatus === 'paid') s.paid += 1;
+      const p = r.eventPass || {};
+      if (p.checkedIn) s.checkedIn += 1;
+      if (p.tshirt) s.tshirt += 1;
+      if (p.souvenir) s.souvenir += 1;
+      s.drinks += Number(p.drinks) || 0;
+      if (p.checkedIn || p.tshirt || p.souvenir || (p.drinks || 0) > 0) s.anyScan += 1;
+    }
+    return s;
+  }, [records]);
+
   // Counts per payment status, used for the filter chips.
   const payCounts = useMemo(() => {
     const c = { all: records.length, paid: 0, not_paid: 0, pending: 0, rejected: 0 };
@@ -281,10 +323,22 @@ export default function AdminPage() {
     return c;
   }, [records]);
 
+  // Check-in filter counts.
+  const checkinCounts = useMemo(() => {
+    const c = { all: records.length, in: 0, out: 0 };
+    for (const r of records) {
+      if (r.eventPass?.checkedIn) c.in += 1;
+      else c.out += 1;
+    }
+    return c;
+  }, [records]);
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     const rows = records.filter((r) => {
       if (payFilter !== 'all' && (r.paymentStatus || 'not_paid') !== payFilter) return false;
+      if (checkinFilter === 'in' && !r.eventPass?.checkedIn) return false;
+      if (checkinFilter === 'out' && r.eventPass?.checkedIn) return false;
       if (!q) return true;
       return [r.name, r.email, r.branch, r.rollNumber]
         .filter(Boolean)
@@ -296,7 +350,7 @@ export default function AdminPage() {
       if (a.approved !== b.approved) return a.approved ? 1 : -1; // pending first
       return new Date(b.createdAt || 0) - new Date(a.createdAt || 0); // newest first
     });
-  }, [records, query, payFilter]);
+  }, [records, query, payFilter, checkinFilter]);
 
   // Pagination (client-side — all records are already loaded).
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
@@ -309,7 +363,7 @@ export default function AdminPage() {
   // Reset to the first page whenever the filters change.
   useEffect(() => {
     setPage(1);
-  }, [query, payFilter]);
+  }, [query, payFilter, checkinFilter]);
 
   // Download the CSV through axios so the auth header is attached, then
   // trigger a browser download from the blob.
@@ -490,6 +544,43 @@ export default function AdminPage() {
         </div>
       )}
 
+      {/* Volunteer counter QR links */}
+      <VolunteerCounters />
+
+      {/* Event-day tracking (live from QR scans) */}
+      {eventStats.anyScan > 0 && (
+        <div className="card space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-lg font-bold text-slate-900">Event-day tracking</h2>
+            <span className="text-xs text-slate-500">
+              Live from counter scans · {eventStats.paid} paid guests
+            </span>
+          </div>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {[
+              ['✅ Checked in', eventStats.checkedIn, eventStats.paid, 'text-emerald-600'],
+              ['👕 T-shirts', eventStats.tshirt, eventStats.paid, 'text-blue-600'],
+              ['🎁 Souvenirs', eventStats.souvenir, eventStats.paid, 'text-purple-600'],
+              ['🥤 Drinks served', eventStats.drinks, eventStats.paid * 2, 'text-amber-600'],
+            ].map(([label, value, total, accent]) => (
+              <div key={label} className="rounded-xl border border-slate-200 p-3 text-center">
+                <div className={`text-2xl font-extrabold ${accent}`}>{value}</div>
+                <div className="mt-0.5 text-xs font-semibold text-slate-600">{label}</div>
+                {total > 0 && (
+                  <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+                    <div
+                      className="h-full rounded-full bg-current opacity-70"
+                      style={{ width: `${Math.min(100, Math.round((value / total) * 100))}%` }}
+                    />
+                  </div>
+                )}
+                <div className="mt-1 text-[11px] text-slate-400">of {total}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Summary */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-7">
         {[
@@ -549,6 +640,35 @@ export default function AdminPage() {
             </button>
           ))}
         </div>
+
+        {/* Check-in filter */}
+        <div className="flex flex-wrap gap-2">
+          {[
+            ['all', 'All'],
+            ['in', '✅ Checked in'],
+            ['out', '⌛ Not in yet'],
+          ].map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setCheckinFilter(value)}
+              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                checkinFilter === value
+                  ? 'border-emerald-600 bg-emerald-600 text-white'
+                  : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50'
+              }`}
+            >
+              {label}
+              <span
+                className={`rounded-full px-1.5 py-0.5 text-[10px] tabular-nums ${
+                  checkinFilter === value ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'
+                }`}
+              >
+                {checkinCounts[value] ?? 0}
+              </span>
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Table */}
@@ -569,6 +689,7 @@ export default function AdminPage() {
                 <th className="px-4 py-3">Food</th>
                 <th className="px-4 py-3">Tee</th>
                 <th className="px-4 py-3">Payment</th>
+                <th className="px-4 py-3">Event</th>
                 <th className="px-4 py-3"></th>
               </tr>
             </thead>
@@ -766,6 +887,11 @@ export default function AdminPage() {
                         )}
                       </div>
                     </div>
+                  </td>
+
+                  {/* Event-day redemptions (from QR scans) */}
+                  <td className="px-4 py-3 align-top">
+                    <PassCell pass={r.eventPass} />
                   </td>
 
                   {/* Actions (compact icons) */}
@@ -1273,6 +1399,94 @@ function EmailBroadcast({ records }) {
         >
           {sending ? 'Sending…' : `Send to ${count}`}
         </button>
+      </div>
+    </div>
+  );
+}
+
+
+// Per-counter QR links to hand to volunteers. Screenshot one and give it to
+// the volunteer at that counter — they open it (no login) and scan guests.
+function VolunteerCounters() {
+  const [stations, setStations] = useState(null);
+  const [err, setErr] = useState('');
+  const [rotating, setRotating] = useState(false);
+  const [copied, setCopied] = useState('');
+
+  useEffect(() => {
+    api.get('/api/admin/stations').then((r) => setStations(r.data.stations)).catch(() => {});
+  }, []);
+
+  const rotate = async () => {
+    if (
+      !window.confirm(
+        'Generate fresh counter links? All previously shared links will stop working.',
+      )
+    ) {
+      return;
+    }
+    setRotating(true);
+    setErr('');
+    try {
+      const r = await api.post('/api/admin/stations/rotate');
+      setStations(r.data.stations);
+    } catch (e) {
+      setErr(apiError(e, 'Could not rotate links'));
+    } finally {
+      setRotating(false);
+    }
+  };
+
+  const linkFor = (token) => `${window.location.origin}/station/${token}`;
+
+  const copy = async (token, key) => {
+    try {
+      await navigator.clipboard.writeText(linkFor(token));
+      setCopied(key);
+      setTimeout(() => setCopied(''), 1500);
+    } catch {
+      /* clipboard blocked — user can long-press the link instead */
+    }
+  };
+
+  if (!stations) return null;
+
+  return (
+    <div className="card space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-lg font-bold text-slate-900">Volunteer counters</h2>
+        <button
+          onClick={rotate}
+          disabled={rotating}
+          className="btn bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50 disabled:opacity-50"
+          title="Invalidate all current links and make new ones"
+        >
+          {rotating ? 'Rotating…' : '↻ New links'}
+        </button>
+      </div>
+      <p className="text-xs text-slate-500">
+        Screenshot a counter's QR (or copy its link) and give it to that volunteer. They open it —
+        no login — and scan each guest's pass. Anyone with a link can mark that counter, so keep
+        them private and use “New links” if one leaks.
+      </p>
+      {err && <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{err}</div>}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {stations.map((s) => (
+          <div key={s.key} className="rounded-xl border border-slate-200 p-4 text-center">
+            <div className="text-sm font-bold text-slate-800">
+              {s.emoji} {s.label}
+            </div>
+            <div className="mx-auto my-3 w-fit rounded-lg bg-white p-2 ring-1 ring-slate-200">
+              <QRCodeSVG value={linkFor(s.token)} size={148} level="M" includeMargin />
+            </div>
+            <button
+              onClick={() => copy(s.token, s.key)}
+              className="w-full rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-200"
+            >
+              {copied === s.key ? 'Copied ✓' : 'Copy link'}
+            </button>
+          </div>
+        ))}
       </div>
     </div>
   );

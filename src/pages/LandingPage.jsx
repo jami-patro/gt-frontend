@@ -542,6 +542,9 @@ export default function LandingPage() {
           {contributors.count > 0 && (
             <StatCard value={contributors.count} label="Contributed" accent="text-emerald-600" />
           )}
+          {stats?.checkedIn > 0 && (
+            <StatCard value={stats.checkedIn} label="✅ Checked in" accent="text-emerald-600" />
+          )}
         </div>
 
         {stats?.food && (

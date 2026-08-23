@@ -7,6 +7,8 @@ import ForgotPasswordPage from './pages/ForgotPasswordPage.jsx';
 import RegisterPage from './pages/RegisterPage.jsx';
 import DashboardPage from './pages/DashboardPage.jsx';
 import AdminPage from './pages/AdminPage.jsx';
+import PassPage from './pages/PassPage.jsx';
+import StationPage from './pages/StationPage.jsx';
 
 export default function App() {
   return (
@@ -34,6 +36,12 @@ export default function App() {
               </ProtectedRoute>
             }
           />
+          {/* Event-day pass check-in (scanned from a member's QR). Auth is
+              handled inside the page so volunteers get a clear login prompt. */}
+          <Route path="/pass/:token" element={<PassPage />} />
+          {/* Volunteer counter station (opened from a per-counter QR link,
+              no login). Scans member passes to mark redemptions. */}
+          <Route path="/station/:token" element={<StationPage />} />
           <Route path="*" element={<LandingPage />} />
         </Routes>
       </main>
