@@ -234,11 +234,12 @@ export default function AdminPage() {
 
   // Only approved members count toward attendance/food/headcount totals.
   const summary = useMemo(() => {
-    const s = { attending: 0, maybe: 0, no: 0, veg: 0, nonVeg: 0, guests: 0, pending: 0, paid: 0, collected: 0, pendingPay: 0, unpaid: 0 };
+    const s = { attending: 0, maybe: 0, no: 0, veg: 0, nonVeg: 0, guests: 0, pending: 0, paid: 0, collected: 0, pendingPay: 0, unpaid: 0, needRoom: 0 };
     for (const r of records) {
       if (r.paymentStatus === 'paid') s.paid += 1;
       if (r.paymentStatus === 'pending') s.pendingPay += 1;
       if (!r.paymentStatus || r.paymentStatus === 'not_paid' || r.paymentStatus === 'rejected') s.unpaid += 1;
+      if (r.accommodationNeeded) s.needRoom += 1;
       s.collected += Number(r.contributionAmount) || 0;
       if (!r.approved) {
         s.pending += 1;
@@ -595,6 +596,7 @@ export default function AdminPage() {
           ['Paid', summary.paid, 'text-emerald-600'],
           ['Under review', summary.pendingPay, 'text-amber-600'],
           ['Not paid', summary.unpaid, 'text-rose-600'],
+          ['🏨 Need stay', summary.needRoom, 'text-indigo-600'],
           ['Collected', `₹${summary.collected.toLocaleString('en-IN')}`, 'text-slate-900'],
         ].map(([label, value, accent]) => (
           <div key={label} className="card text-center">
@@ -1264,6 +1266,11 @@ function EmailBroadcast({ records }) {
           <Tag label="Pay review" emails={emailsWhere((p) => p.paymentStatus === 'pending')} />
           <Tag label="Rejected" emails={emailsWhere((p) => p.paymentStatus === 'rejected')} />
           <Tag label="Paid" emails={emailsWhere((p) => p.paymentStatus === 'paid')} />
+          {/* Accommodation groups — for sending hotel/stay details to those
+              travelling who asked for help. */}
+          <Tag label="🏨 Need stay" emails={emailsWhere((p) => p.accommodationNeeded)} />
+          <Tag label="Single room" emails={emailsWhere((p) => p.accommodationType === 'single')} />
+          <Tag label="Family room" emails={emailsWhere((p) => p.accommodationType === 'family')} />
           {branches.map((b) => (
             <Tag key={b} label={b} emails={emailsWhere((p) => p.branch === b)} />
           ))}
