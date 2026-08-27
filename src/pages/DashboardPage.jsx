@@ -234,6 +234,37 @@ export default function DashboardPage() {
       <ContributionSection userName={user?.name} />
 
       <EventPassSection />
+
+      <GalleryCard />
+    </div>
+  );
+}
+
+// Shared photos & videos link (Google Drive), shown to logged-in members.
+function GalleryCard() {
+  const [url, setUrl] = useState('');
+  useEffect(() => {
+    api
+      .get('/api/public/event')
+      .then((r) => setUrl(r.data?.galleryUrl || ''))
+      .catch(() => {});
+  }, []);
+  if (!url || !/^https?:\/\//.test(url)) return null;
+  return (
+    <div className="card space-y-2">
+      <h2 className="text-lg font-bold text-slate-900">📸 Share your photos &amp; videos</h2>
+      <p className="text-sm text-slate-600">
+        Add your snaps and short clips to our shared album — no renaming needed, just upload from
+        your phone.
+      </p>
+      <a
+        href={url}
+        target="_blank"
+        rel="noreferrer"
+        className="inline-flex w-fit items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-indigo-700"
+      >
+        ⬆️ Upload photos &amp; videos
+      </a>
     </div>
   );
 }

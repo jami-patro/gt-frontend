@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { QRCodeSVG } from 'qrcode.react';
 import { api } from '../lib/api.js';
 import { useCountdown } from '../hooks/useCountdown.js';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -303,6 +304,44 @@ function ContributorsWall({ contributors, count }) {
   );
 }
 
+// "Share your memories" — links to the shared Google Drive folder where guests
+// upload photos & short videos. QR shown for easy scanning at the venue.
+function GallerySection({ url }) {
+  if (!url || !/^https?:\/\//.test(url)) return null;
+  return (
+    <section>
+      <div className="overflow-hidden rounded-3xl border border-slate-200 bg-gradient-to-br from-indigo-50 to-white p-6 sm:p-8">
+        <div className="flex flex-col items-center gap-6 sm:flex-row sm:items-center sm:justify-between">
+          <div className="text-center sm:text-left">
+            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-indigo-500">
+              Memories
+            </div>
+            <h2 className="mt-2 text-2xl font-extrabold text-slate-900">
+              📸 Share your photos &amp; videos
+            </h2>
+            <p className="mt-2 max-w-md text-sm text-slate-600">
+              Add your snaps and short clips from the reunion to our shared album — no need to
+              rename anything, just upload from your phone. Short 5-second videos are perfect!
+            </p>
+            <a
+              href={url}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-4 inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-5 py-3 text-sm font-bold text-white hover:bg-indigo-700"
+            >
+              ⬆️ Upload photos &amp; videos
+            </a>
+          </div>
+          <div className="shrink-0 rounded-2xl bg-white p-3 ring-1 ring-slate-200">
+            <QRCodeSVG value={url} size={128} level="M" includeMargin />
+            <div className="mt-1 text-center text-[11px] text-slate-400">Scan to upload</div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function ContributionCTA({ amount, note, user }) {
   // Only show once an amount is configured.
   if (!amount || amount <= 0) return null;
@@ -550,6 +589,9 @@ export default function LandingPage() {
 
       {/* Contribution CTA — links to login/dashboard to pay */}
       <ContributionCTA amount={payment?.amount} note={payment?.note} user={user} />
+
+      {/* Share your photos & videos (Google Drive) */}
+      <GallerySection url={event.galleryUrl} />
 
       {/* Live stats */}
       <section>
