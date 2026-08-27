@@ -291,7 +291,9 @@ export default function MemoriesWall({ galleryUrl, compact = false }) {
           <div className="mb-2 text-sm font-semibold text-slate-700">
             {items.length} shared {items.length === 1 ? 'memory' : 'memories'}
           </div>
-          <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5">
+          {/* Capped, scrollable grid so the section stays tidy no matter how
+              many photos are shared. */}
+          <div className="grid max-h-[420px] grid-cols-3 gap-2 overflow-y-auto rounded-xl sm:grid-cols-4 md:grid-cols-5">
             {items.map((it) => (
               <button
                 key={it.id}
