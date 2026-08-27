@@ -5,6 +5,58 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { compressImage } from '../lib/image.js';
 import MemoriesWall from '../components/MemoriesWall.jsx';
 
+// Bank-transfer details for NRI members / net-banking. Each value has a
+// copy button so it's easy to paste into a banking app.
+function BankTransferCard({ acc }) {
+  const [copied, setCopied] = useState('');
+  const copy = async (key, value) => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(key);
+      setTimeout(() => setCopied(''), 1500);
+    } catch {
+      /* clipboard blocked — the value is visible to copy manually */
+    }
+  };
+  const rows = [
+    ['Bank', acc.bankName, false],
+    ['Account name', acc.accountName, false],
+    ['Account no.', acc.accountNumber, true],
+    ['IFSC', acc.ifsc, true],
+    ['Branch', acc.branch, false],
+    ['SWIFT', acc.swift, true],
+  ].filter(([, v]) => v);
+
+  return (
+    <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4">
+      <div className="text-sm font-bold text-slate-800">🏦 Bank transfer (NRI / net-banking)</div>
+      <p className="mt-0.5 text-xs text-slate-400">
+        Prefer a direct/international transfer? Use these account details, then upload the
+        confirmation below.
+      </p>
+      <dl className="mt-3 divide-y divide-slate-100">
+        {rows.map(([label, value, copyable]) => (
+          <div key={label} className="flex items-center justify-between gap-3 py-1.5">
+            <dt className="text-xs font-medium text-slate-500">{label}</dt>
+            <dd className="flex items-center gap-2 text-right">
+              <span className="break-all text-sm font-semibold text-slate-800">{value}</span>
+              {copyable && (
+                <button
+                  type="button"
+                  onClick={() => copy(label, value)}
+                  className="shrink-0 rounded-md bg-white px-2 py-0.5 text-[11px] font-semibold text-slate-600 ring-1 ring-slate-200 hover:bg-slate-100"
+                >
+                  {copied === label ? 'Copied ✓' : 'Copy'}
+                </button>
+              )}
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+  );
+}
+
 const TSHIRT_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL'];
 
 const ATTENDANCE_OPTIONS = [
@@ -595,6 +647,9 @@ function ContributionSection({ userName }) {
               </div>
             ))}
           </div>
+
+          {/* Bank transfer — for NRI members / net-banking */}
+          {cfg.bankAccount && <BankTransferCard acc={cfg.bankAccount} />}
 
           <div className="space-y-2 border-t border-slate-100 pt-3">
             <label className="label">
