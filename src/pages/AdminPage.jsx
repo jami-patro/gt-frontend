@@ -382,6 +382,22 @@ export default function AdminPage() {
     }
   };
 
+  // Download a guest's pass QR as a PNG (e.g. when their phone/email isn't
+  // working, so they can photograph it at the desk).
+  const downloadPass = async (id, name) => {
+    try {
+      const res = await api.get(`/api/admin/users/${id}/pass.png`, { responseType: 'blob' });
+      const url = URL.createObjectURL(res.data);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${(name || 'guest').replace(/[^a-z0-9]+/gi, '_')}-pass.png`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(apiError(err, 'Could not download pass QR'));
+    }
+  };
+
   const saveEdit = async (id) => {
     setSavingEdit(true);
     try {
@@ -544,6 +560,9 @@ export default function AdminPage() {
           </p>
         </div>
       )}
+
+      {/* Walk-in registration (add a guest at the venue) */}
+      <WalkInRegistration onDone={load} />
 
       {/* Volunteer counter QR links */}
       <VolunteerCounters />
@@ -918,6 +937,13 @@ export default function AdminPage() {
                       </div>
                     ) : (
                       <div className="flex items-center justify-end gap-1">
+                        <button
+                          onClick={() => downloadPass(r.id, r.name)}
+                          title="Download pass QR"
+                          className="grid h-7 w-7 place-items-center rounded-lg text-slate-600 hover:bg-slate-100"
+                        >
+                          ⬇
+                        </button>
                         <button
                           onClick={() => startEdit(r)}
                           title="Edit"
@@ -1495,6 +1521,170 @@ function VolunteerCounters() {
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+
+// Register a guest who shows up at the venue without an online RSVP. Creates an
+// approved member + RSVP, optionally marks them paid + checked-in, and mints a
+// pass — all in one step. Collapsed by default to keep the dashboard tidy.
+const WALKIN_BRANCHES = ['Computer Science', 'Electrical', 'Mechanical', 'Civil', 'Electronics'];
+const WALKIN_TSHIRTS = ['XS', 'S', 'M', 'L', 'XL', 'XXL'];
+
+function WalkInRegistration({ onDone }) {
+  const [open, setOpen] = useState(false);
+  const empty = {
+    name: '',
+    email: '',
+    phone: '',
+    branch: '',
+    foodPreference: 'veg',
+    tshirtSize: '',
+    contributionAmount: '',
+    markPaid: false,
+    checkIn: true,
+  };
+  const [form, setForm] = useState(empty);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const [done, setDone] = useState(null); // { name, passUrl }
+
+  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  const submit = async () => {
+    setErr('');
+    setDone(null);
+    if (!form.name.trim()) {
+      setErr('Name is required.');
+      return;
+    }
+    setBusy(true);
+    try {
+      const res = await api.post('/api/admin/walkin', {
+        ...form,
+        contributionAmount: Number(form.contributionAmount) || 0,
+      });
+      setDone({ name: res.data.name, passUrl: res.data.passUrl });
+      setForm(empty);
+      onDone?.();
+    } catch (e) {
+      setErr(apiError(e, 'Could not register walk-in'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="card space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-lg font-bold text-slate-900">🚶 Walk-in registration</h2>
+        <button
+          onClick={() => setOpen((v) => !v)}
+          className="btn bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50"
+        >
+          {open ? 'Close' : '+ Add walk-in'}
+        </button>
+      </div>
+
+      {done && (
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+          <span className="font-semibold">{done.name}</span> registered ✓
+          {done.passUrl && (
+            <>
+              {' '}
+              ·{' '}
+              <a href={done.passUrl} target="_blank" rel="noreferrer" className="font-semibold underline">
+                open pass
+              </a>
+            </>
+          )}
+        </div>
+      )}
+
+      {open && (
+        <div className="space-y-3">
+          <p className="text-xs text-slate-500">
+            Adds an approved guest with an RSVP. Optionally mark them paid and checked-in. Email is
+            optional — leave blank for a quick add.
+          </p>
+          {err && <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{err}</div>}
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <label className="label">Name *</label>
+              <input className="input" value={form.name} onChange={set('name')} placeholder="Full name" />
+            </div>
+            <div>
+              <label className="label">Email (optional)</label>
+              <input className="input" value={form.email} onChange={set('email')} placeholder="name@example.com" />
+            </div>
+            <div>
+              <label className="label">Phone</label>
+              <input className="input" value={form.phone} onChange={set('phone')} />
+            </div>
+            <div>
+              <label className="label">Branch</label>
+              <select className="input" value={form.branch} onChange={set('branch')}>
+                <option value="">—</option>
+                {WALKIN_BRANCHES.map((b) => (
+                  <option key={b} value={b}>{b}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="label">Food</label>
+              <select className="input" value={form.foodPreference} onChange={set('foodPreference')}>
+                <option value="veg">Veg</option>
+                <option value="non_veg">Non-veg</option>
+              </select>
+            </div>
+            <div>
+              <label className="label">T-shirt</label>
+              <select className="input" value={form.tshirtSize} onChange={set('tshirtSize')}>
+                <option value="">—</option>
+                {WALKIN_TSHIRTS.map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="label">Contribution (₹)</label>
+              <input
+                type="number"
+                min={0}
+                className="input"
+                value={form.contributionAmount}
+                onChange={set('contributionAmount')}
+                placeholder="e.g. 5500"
+              />
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-4">
+            <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
+              <input
+                type="checkbox"
+                checked={form.markPaid}
+                onChange={(e) => setForm((f) => ({ ...f, markPaid: e.target.checked }))}
+              />
+              Mark as paid
+            </label>
+            <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
+              <input
+                type="checkbox"
+                checked={form.checkIn}
+                onChange={(e) => setForm((f) => ({ ...f, checkIn: e.target.checked }))}
+              />
+              Check in now
+            </label>
+          </div>
+
+          <button onClick={submit} disabled={busy} className="btn-primary disabled:opacity-50">
+            {busy ? 'Registering…' : 'Register walk-in'}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
