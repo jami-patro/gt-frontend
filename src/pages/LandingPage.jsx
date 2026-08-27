@@ -231,35 +231,40 @@ function AttendeeWall({ attendees, branchFilter, setBranchFilter, attendFilter, 
                 No one here yet.
               </div>
             ) : (
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-col gap-2">
                 {filtered.map((a, i) => (
-                  <span
+                  <div
                     key={i}
-                    className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium ${
+                    className={`flex items-center gap-2 rounded-full border px-3 py-2 text-sm ${
                       a.attendance === 'yes'
                         ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
                         : 'border-amber-200 bg-amber-50 text-amber-700'
                     }`}
                   >
-                    {a.name}
-                    {a.branch && <span className="text-xs opacity-60">· {a.branch}</span>}
-                    {a.paid && (
-                      <span
-                        className="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700"
-                        title="Contributed"
-                      >
-                        ✓ Paid
-                      </span>
-                    )}
-                    {a.needsStay && (
-                      <span
-                        className="rounded-full bg-indigo-100 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-700"
-                        title="Needs accommodation help"
-                      >
-                        🏨 Stay
-                      </span>
-                    )}
-                  </span>
+                    {/* Name + branch take the available space; badges stay right */}
+                    <span className="min-w-0 flex-1 font-medium leading-snug">
+                      {a.name}
+                      {a.branch && <span className="ml-1 text-xs opacity-60">· {a.branch}</span>}
+                    </span>
+                    <span className="flex shrink-0 items-center gap-1">
+                      {a.paid && (
+                        <span
+                          className="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700"
+                          title="Contributed"
+                        >
+                          ✓ Paid
+                        </span>
+                      )}
+                      {a.needsStay && (
+                        <span
+                          className="rounded-full bg-indigo-100 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-700"
+                          title="Needs accommodation help"
+                        >
+                          🏨 Stay
+                        </span>
+                      )}
+                    </span>
+                  </div>
                 ))}
               </div>
             )}
@@ -284,15 +289,18 @@ function ContributorsWall({ contributors, count }) {
         </span>
       </div>
       <div className="max-h-72 overflow-y-auto rounded-2xl border border-slate-100 bg-slate-50/50 p-3">
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-col gap-2">
           {contributors.map((c, i) => (
-            <span
+            <div
               key={i}
-              className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-sm font-medium text-emerald-700"
+              className="flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700"
             >
-              {c.name}
-              {c.branch && <span className="text-xs opacity-60">· {c.branch}</span>}
-            </span>
+              <span className="min-w-0 flex-1 leading-snug">
+                {c.name}
+                {c.branch && <span className="ml-1 text-xs opacity-60">· {c.branch}</span>}
+              </span>
+              <span className="shrink-0 text-[11px] font-semibold text-emerald-500">🎉</span>
+            </div>
           ))}
         </div>
       </div>
