@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { QRCodeSVG } from 'qrcode.react';
+import { useEffect, useRef, useState } from 'react';
+import { QRCodeSVG, QRCodeCanvas } from 'qrcode.react';
 import { api, apiError } from '../lib/api.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { compressImage } from '../lib/image.js';
@@ -251,9 +251,9 @@ function GalleryCard() {
   }, []);
   if (!url || !/^https?:\/\//.test(url)) return null;
   return (
-    <div className="rounded-2xl border-2 border-indigo-200 bg-gradient-to-br from-indigo-50 to-white p-5 shadow-sm">
-      <div className="text-xs font-semibold uppercase tracking-[0.2em] text-indigo-500">Memories</div>
-      <h2 className="mt-1 text-2xl font-extrabold text-slate-900">📸 Share your photos &amp; videos</h2>
+    <div className="rounded-2xl border-2 border-brand-300 bg-gradient-to-br from-brand-50 to-white p-5 shadow-sm">
+      <div className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-600">Memories</div>
+      <h2 className="mt-1 text-2xl font-extrabold text-ink-950">📸 Share your photos &amp; videos</h2>
       <p className="mt-1 text-sm text-slate-600">
         Drop your snaps and short clips into our shared album — no renaming needed, just upload
         straight from your phone.
@@ -262,7 +262,7 @@ function GalleryCard() {
         href={url}
         target="_blank"
         rel="noreferrer"
-        className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-3 text-base font-bold text-white shadow hover:bg-indigo-700"
+        className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-brand-400 px-4 py-3 text-base font-extrabold text-ink-950 shadow hover:bg-brand-300"
       >
         ⬆️ Upload photos &amp; videos
       </a>
@@ -279,11 +279,23 @@ function EventPassSection() {
     api.get('/api/rsvp/pass').then((r) => setPass(r.data)).catch(() => {});
   }, []);
 
+  // Hidden high-res canvas used only to export a downloadable PNG.
+  const dlRef = useRef(null);
+
   // Only paid members get a pass.
   if (!pass || !pass.paid || !pass.token) return null;
 
   const s = pass.status || {};
   const passUrl = `${window.location.origin}/pass/${pass.token}`;
+
+  const downloadPass = () => {
+    const canvas = dlRef.current?.querySelector('canvas');
+    if (!canvas) return;
+    const a = document.createElement('a');
+    a.href = canvas.toDataURL('image/png');
+    a.download = `${(pass.name || 'reunion').replace(/[^a-z0-9]+/gi, '_')}-pass.png`;
+    a.click();
+  };
   const items = [
     ['✅', 'Checked in', s.checkedIn],
     ['👕', 'T-shirt', s.tshirt],
@@ -314,9 +326,21 @@ function EventPassSection() {
             </div>
           </div>
         )}
+        <button
+          type="button"
+          onClick={downloadPass}
+          className="inline-flex items-center gap-2 rounded-xl bg-ink-950 px-4 py-2.5 text-sm font-bold text-white hover:bg-ink-800"
+        >
+          ⬇️ Download my pass (for offline)
+        </button>
         <p className="text-center text-xs text-slate-400">
-          Keep it handy on your phone — no need to print.
+          Save it to your phone so it works even without internet at the venue.
         </p>
+      </div>
+
+      {/* Hidden high-res canvas for the PNG download */}
+      <div ref={dlRef} style={{ display: 'none' }}>
+        <QRCodeCanvas value={passUrl} size={512} level="M" includeMargin />
       </div>
 
       {/* Live redemption status */}

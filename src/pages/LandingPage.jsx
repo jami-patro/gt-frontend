@@ -310,13 +310,13 @@ function GallerySection({ url }) {
   if (!url || !/^https?:\/\//.test(url)) return null;
   return (
     <section>
-      <div className="overflow-hidden rounded-3xl border border-slate-200 bg-gradient-to-br from-indigo-50 to-white p-6 sm:p-8">
+      <div className="overflow-hidden rounded-3xl border-2 border-brand-300 bg-gradient-to-br from-brand-50 to-white p-6 sm:p-8">
         <div className="flex flex-col items-center gap-6 sm:flex-row sm:items-center sm:justify-between">
           <div className="text-center sm:text-left">
-            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-indigo-500">
+            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-600">
               Memories
             </div>
-            <h2 className="mt-2 text-2xl font-extrabold text-slate-900">
+            <h2 className="mt-2 text-2xl font-extrabold text-ink-950">
               📸 Share your photos &amp; videos
             </h2>
             <p className="mt-2 max-w-md text-sm text-slate-600">
@@ -327,7 +327,7 @@ function GallerySection({ url }) {
               href={url}
               target="_blank"
               rel="noreferrer"
-              className="mt-4 inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-5 py-3 text-sm font-bold text-white hover:bg-indigo-700"
+              className="mt-4 inline-flex items-center gap-2 rounded-xl bg-brand-400 px-5 py-3 text-sm font-extrabold text-ink-950 shadow hover:bg-brand-300"
             >
               ⬆️ Upload photos &amp; videos
             </a>
