@@ -7,7 +7,7 @@ import MemoriesWall from '../components/MemoriesWall.jsx';
 
 // Bank-transfer details for NRI members / net-banking. Each value has a
 // copy button so it's easy to paste into a banking app.
-function BankTransferCard({ acc, selected, onToggle }) {
+function BankTransferCard({ acc }) {
   const [copied, setCopied] = useState('');
   const copy = async (key, value) => {
     try {
@@ -28,7 +28,7 @@ function BankTransferCard({ acc, selected, onToggle }) {
   ].filter(([, v]) => v);
 
   return (
-    <div className={`rounded-xl border p-4 ${selected ? 'border-brand-400 bg-brand-50 ring-2 ring-brand-300' : 'border-slate-200 bg-slate-50/60'}`}>
+    <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4">
       <div className="text-center text-xs font-semibold uppercase tracking-wide text-slate-500">
         Option 3 · Bank transfer (NRI / net-banking)
       </div>
@@ -55,17 +55,6 @@ function BankTransferCard({ acc, selected, onToggle }) {
           </div>
         ))}
       </dl>
-      {onToggle && (
-        <label className="mt-3 flex cursor-pointer items-center gap-2 rounded-lg bg-white px-3 py-2 text-sm ring-1 ring-slate-200">
-          <input
-            type="checkbox"
-            checked={selected}
-            onChange={(e) => onToggle(e.target.checked)}
-            className="accent-brand-500"
-          />
-          <span className="font-medium text-ink-950">✅ I paid using this bank account</span>
-        </label>
-      )}
     </div>
   );
 }
@@ -432,7 +421,7 @@ function ContributionSection({ userName }) {
   const [note, setNote] = useState('');
   const [file, setFile] = useState(null);
   const [txnId, setTxnId] = useState('');
-  const [paidVia, setPaidVia] = useState('upi'); // 'upi' | 'bank'
+  const [paidVia, setPaidVia] = useState(''); // '' | 'upi' | 'bank' — must be chosen
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [done, setDone] = useState(false);
@@ -506,6 +495,10 @@ function ContributionSection({ userName }) {
     }
     if (!note.trim()) {
       setErr('Please add a reference note (who paid / UPI name).');
+      return;
+    }
+    if (!paidVia) {
+      setErr('Please select which method you used (UPI or Bank transfer).');
       return;
     }
     setBusy(true);
@@ -664,13 +657,40 @@ function ContributionSection({ userName }) {
           </div>
 
           {/* Option 3 — bank transfer (for NRI members / net-banking) */}
-          {cfg.bankAccount && (
-            <BankTransferCard
-              acc={cfg.bankAccount}
-              selected={paidVia === 'bank'}
-              onToggle={(v) => setPaidVia(v ? 'bank' : 'upi')}
-            />
-          )}
+          {cfg.bankAccount && <BankTransferCard acc={cfg.bankAccount} />}
+
+          {/* Required: which method did you use? (so we can reconcile & total
+              NRI/bank vs UPI). No default — must be chosen to submit. */}
+          <div className="border-t border-slate-100 pt-3">
+            <label className="label">
+              Which method did you use? <span className="text-rose-500">*</span>
+            </label>
+            <div className="mt-1 flex flex-col gap-2 sm:flex-row">
+              {[
+                ['upi', '📲 UPI / QR (Option 1 or 2)'],
+                ...(cfg.bankAccount ? [['bank', '🏦 Bank transfer (Option 3)']] : []),
+              ].map(([val, lbl]) => (
+                <label
+                  key={val}
+                  className={`flex flex-1 cursor-pointer items-center gap-2 rounded-xl border px-3 py-2 text-sm transition ${
+                    paidVia === val
+                      ? 'border-brand-400 bg-brand-50 ring-2 ring-brand-300'
+                      : 'border-slate-200 bg-white hover:bg-slate-50'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="paid-via"
+                    value={val}
+                    checked={paidVia === val}
+                    onChange={() => setPaidVia(val)}
+                    className="accent-brand-500"
+                  />
+                  <span className="font-medium text-ink-950">{lbl}</span>
+                </label>
+              ))}
+            </div>
+          </div>
 
           <div className="space-y-2 border-t border-slate-100 pt-3">
             <label className="label">
