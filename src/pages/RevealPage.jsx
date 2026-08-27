@@ -81,6 +81,29 @@ export default function RevealPage() {
     return () => window.removeEventListener('keydown', onKey);
   }, [next, prev]);
 
+  // Backup: download every collected file to this device. We add Cloudinary's
+  // `fl_attachment` flag so each URL downloads as a file (instead of opening),
+  // and step through them with a small delay so the browser doesn't block the
+  // burst. Downloads ALL items regardless of the current filter.
+  const [downloading, setDownloading] = useState(false);
+  const downloadAll = async () => {
+    if (downloading || items.length === 0) return;
+    if (!window.confirm(`Download all ${items.length} files to this device as a backup?`)) return;
+    setDownloading(true);
+    const toAttachment = (url) => url.replace('/upload/', '/upload/fl_attachment/');
+    for (const it of items) {
+      const a = document.createElement('a');
+      a.href = toAttachment(it.url);
+      a.download = '';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      // eslint-disable-next-line no-await-in-loop
+      await new Promise((r) => setTimeout(r, 800));
+    }
+    setDownloading(false);
+  };
+
   const goFullscreen = () => {
     const el = rootRef.current;
     if (!el) return;
@@ -113,6 +136,14 @@ export default function RevealPage() {
           <span className="text-white/50">
             {list.length ? `${index + 1} / ${list.length}` : '0'}
           </span>
+          <button
+            onClick={downloadAll}
+            disabled={downloading || items.length === 0}
+            className="rounded-full bg-white/10 px-3 py-1 hover:bg-white/20 disabled:opacity-50"
+            title="Download all files (backup)"
+          >
+            {downloading ? 'Downloading…' : `⬇ Backup (${items.length})`}
+          </button>
           <button onClick={goFullscreen} className="rounded-full bg-white/10 px-3 py-1 hover:bg-white/20" title="Fullscreen">
             ⛶
           </button>
