@@ -235,7 +235,7 @@ function AttendeeWall({ attendees, branchFilter, setBranchFilter, attendFilter, 
                 {filtered.map((a, i) => (
                   <div
                     key={i}
-                    className={`flex items-center gap-2 rounded-full border px-3 py-2 text-sm ${
+                    className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-[13px] ${
                       a.attendance === 'yes'
                         ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
                         : 'border-amber-200 bg-amber-50 text-amber-700'
@@ -244,7 +244,7 @@ function AttendeeWall({ attendees, branchFilter, setBranchFilter, attendFilter, 
                     {/* Name + branch take the available space; badges stay right */}
                     <span className="min-w-0 flex-1 font-medium leading-snug">
                       {a.name}
-                      {a.branch && <span className="ml-1 text-xs opacity-60">· {a.branch}</span>}
+                      {a.branch && <span className="ml-1 text-[11px] opacity-60">· {a.branch}</span>}
                     </span>
                     <span className="flex shrink-0 items-center gap-1">
                       {a.paid && (
@@ -293,11 +293,11 @@ function ContributorsWall({ contributors, count }) {
           {contributors.map((c, i) => (
             <div
               key={i}
-              className="flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700"
+              className="flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-[13px] font-medium text-emerald-700"
             >
               <span className="min-w-0 flex-1 leading-snug">
                 {c.name}
-                {c.branch && <span className="ml-1 text-xs opacity-60">· {c.branch}</span>}
+                {c.branch && <span className="ml-1 text-[11px] opacity-60">· {c.branch}</span>}
               </span>
               <span className="shrink-0 text-[11px] font-semibold text-emerald-500">🎉</span>
             </div>
