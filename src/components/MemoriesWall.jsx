@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { QRCodeSVG } from 'qrcode.react';
 import api, { apiError } from '../lib/api.js';
 
 // In-site photo & video sharing backed by Cloudinary. Guests pick files from
@@ -140,6 +141,20 @@ export default function MemoriesWall({ galleryUrl, compact = false }) {
         Pick photos or short clips straight from your phone or laptop — they upload right here, no
         app or Google account needed.
       </p>
+
+      {/* Scan-to-upload QR — great for printing/showing at the venue so guests
+          can open this page on their phone and upload on the spot. */}
+      {!compact && (
+        <div className="mt-4 inline-flex items-center gap-3 rounded-2xl border border-brand-200 bg-white p-3">
+          <QRCodeSVG value={window.location.origin} size={96} level="M" includeMargin />
+          <div className="text-sm">
+            <div className="font-bold text-ink-950">📷 Scan to upload</div>
+            <div className="text-xs text-slate-500">
+              Point your phone camera here to open this page and add your photos.
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Uploader */}
       {enabled ? (
