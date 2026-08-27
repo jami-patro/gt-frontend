@@ -7,7 +7,7 @@ import MemoriesWall from '../components/MemoriesWall.jsx';
 
 // Bank-transfer details for NRI members / net-banking. Each value has a
 // copy button so it's easy to paste into a banking app.
-function BankTransferCard({ acc }) {
+function BankTransferCard({ acc, selected, onToggle }) {
   const [copied, setCopied] = useState('');
   const copy = async (key, value) => {
     try {
@@ -28,9 +28,11 @@ function BankTransferCard({ acc }) {
   ].filter(([, v]) => v);
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4">
-      <div className="text-sm font-bold text-slate-800">🏦 Bank transfer (NRI / net-banking)</div>
-      <p className="mt-0.5 text-xs text-slate-400">
+    <div className={`rounded-xl border p-4 ${selected ? 'border-brand-400 bg-brand-50 ring-2 ring-brand-300' : 'border-slate-200 bg-slate-50/60'}`}>
+      <div className="text-center text-xs font-semibold uppercase tracking-wide text-slate-500">
+        Option 3 · Bank transfer (NRI / net-banking)
+      </div>
+      <p className="mt-1 text-center text-xs text-slate-400">
         Prefer a direct/international transfer? Use these account details, then upload the
         confirmation below.
       </p>
@@ -53,6 +55,17 @@ function BankTransferCard({ acc }) {
           </div>
         ))}
       </dl>
+      {onToggle && (
+        <label className="mt-3 flex cursor-pointer items-center gap-2 rounded-lg bg-white px-3 py-2 text-sm ring-1 ring-slate-200">
+          <input
+            type="checkbox"
+            checked={selected}
+            onChange={(e) => onToggle(e.target.checked)}
+            className="accent-brand-500"
+          />
+          <span className="font-medium text-ink-950">✅ I paid using this bank account</span>
+        </label>
+      )}
     </div>
   );
 }
@@ -650,40 +663,16 @@ function ContributionSection({ userName }) {
             ))}
           </div>
 
-          {/* Bank transfer — for NRI members / net-banking */}
-          {cfg.bankAccount && <BankTransferCard acc={cfg.bankAccount} />}
+          {/* Option 3 — bank transfer (for NRI members / net-banking) */}
+          {cfg.bankAccount && (
+            <BankTransferCard
+              acc={cfg.bankAccount}
+              selected={paidVia === 'bank'}
+              onToggle={(v) => setPaidVia(v ? 'bank' : 'upi')}
+            />
+          )}
 
           <div className="space-y-2 border-t border-slate-100 pt-3">
-            {cfg.bankAccount && (
-              <div>
-                <label className="label">How did you pay?</label>
-                <div className="flex flex-col gap-2 sm:flex-row">
-                  {[
-                    ['upi', '📲 UPI / QR'],
-                    ['bank', '🏦 Bank transfer (NRI)'],
-                  ].map(([val, lbl]) => (
-                    <label
-                      key={val}
-                      className={`flex flex-1 cursor-pointer items-center gap-2 rounded-xl border px-3 py-2 text-sm transition ${
-                        paidVia === val
-                          ? 'border-brand-400 bg-brand-50 ring-2 ring-brand-300'
-                          : 'border-slate-200 bg-white hover:bg-slate-50'
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="paid-via"
-                        value={val}
-                        checked={paidVia === val}
-                        onChange={() => setPaidVia(val)}
-                        className="accent-brand-500"
-                      />
-                      <span className="font-medium text-ink-950">{lbl}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-            )}
             <label className="label">
               Reference note <span className="text-rose-500">*</span>
             </label>
