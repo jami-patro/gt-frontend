@@ -559,7 +559,7 @@ export default function LandingPage() {
       {/* Contribution CTA — links to login/dashboard to pay */}
       <ContributionCTA amount={payment?.amount} note={payment?.note} user={user} />
 
-      {/* Share your photos & videos (Google Drive) */}
+      {/* Share your photos & videos (in-site Cloudinary uploader + wall) */}
       <GallerySection url={event.galleryUrl} />
 
       {/* Live stats */}

@@ -241,7 +241,7 @@ export default function DashboardPage() {
   );
 }
 
-// Shared photos & videos link (Google Drive), shown to logged-in members.
+// In-site photo & video sharing (Cloudinary uploader + wall), shown to members.
 function GalleryCard() {
   const [url, setUrl] = useState('');
   useEffect(() => {
