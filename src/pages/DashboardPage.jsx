@@ -419,6 +419,7 @@ function ContributionSection({ userName }) {
   const [note, setNote] = useState('');
   const [file, setFile] = useState(null);
   const [txnId, setTxnId] = useState('');
+  const [paidVia, setPaidVia] = useState('upi'); // 'upi' | 'bank'
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [done, setDone] = useState(false);
@@ -510,6 +511,7 @@ function ContributionSection({ userName }) {
         image,
         note: note.trim(),
         transactionId: txnId.trim() || undefined,
+        paidVia,
       });
       setStatus(r.data);
       setDone(true);
@@ -652,6 +654,36 @@ function ContributionSection({ userName }) {
           {cfg.bankAccount && <BankTransferCard acc={cfg.bankAccount} />}
 
           <div className="space-y-2 border-t border-slate-100 pt-3">
+            {cfg.bankAccount && (
+              <div>
+                <label className="label">How did you pay?</label>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  {[
+                    ['upi', '📲 UPI / QR'],
+                    ['bank', '🏦 Bank transfer (NRI)'],
+                  ].map(([val, lbl]) => (
+                    <label
+                      key={val}
+                      className={`flex flex-1 cursor-pointer items-center gap-2 rounded-xl border px-3 py-2 text-sm transition ${
+                        paidVia === val
+                          ? 'border-brand-400 bg-brand-50 ring-2 ring-brand-300'
+                          : 'border-slate-200 bg-white hover:bg-slate-50'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="paid-via"
+                        value={val}
+                        checked={paidVia === val}
+                        onChange={() => setPaidVia(val)}
+                        className="accent-brand-500"
+                      />
+                      <span className="font-medium text-ink-950">{lbl}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
             <label className="label">
               Reference note <span className="text-rose-500">*</span>
             </label>
