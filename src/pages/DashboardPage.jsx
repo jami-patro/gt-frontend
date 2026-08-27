@@ -266,6 +266,11 @@ function GalleryCard() {
       >
         ⬆️ Upload photos &amp; videos
       </a>
+      <p className="mt-2 text-xs text-slate-500">
+        📱 On a phone: open it in the <span className="font-semibold">Google Drive app</span>, then
+        tap <span className="font-semibold">+ → Upload</span> (sign into a Google account first). 💻
+        On a laptop: use the <span className="font-semibold">+ New</span> button.
+      </p>
     </div>
   );
 }

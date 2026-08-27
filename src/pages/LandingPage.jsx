@@ -331,6 +331,11 @@ function GallerySection({ url }) {
             >
               ⬆️ Upload photos &amp; videos
             </a>
+            <p className="mt-3 max-w-md text-xs text-slate-500">
+              📱 On a phone: open it in the <span className="font-semibold">Google Drive app</span>,
+              then tap <span className="font-semibold">+ → Upload</span> (make sure you're signed
+              into a Google account). 💻 On a laptop: just use the <span className="font-semibold">+ New</span> button.
+            </p>
           </div>
           <div className="shrink-0 rounded-2xl bg-white p-3 ring-1 ring-slate-200">
             <QRCodeSVG value={url} size={128} level="M" includeMargin />
