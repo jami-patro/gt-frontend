@@ -251,17 +251,18 @@ function GalleryCard() {
   }, []);
   if (!url || !/^https?:\/\//.test(url)) return null;
   return (
-    <div className="card space-y-2">
-      <h2 className="text-lg font-bold text-slate-900">📸 Share your photos &amp; videos</h2>
-      <p className="text-sm text-slate-600">
-        Add your snaps and short clips to our shared album — no renaming needed, just upload from
-        your phone.
+    <div className="rounded-2xl border-2 border-indigo-200 bg-gradient-to-br from-indigo-50 to-white p-5 shadow-sm">
+      <div className="text-xs font-semibold uppercase tracking-[0.2em] text-indigo-500">Memories</div>
+      <h2 className="mt-1 text-2xl font-extrabold text-slate-900">📸 Share your photos &amp; videos</h2>
+      <p className="mt-1 text-sm text-slate-600">
+        Drop your snaps and short clips into our shared album — no renaming needed, just upload
+        straight from your phone.
       </p>
       <a
         href={url}
         target="_blank"
         rel="noreferrer"
-        className="inline-flex w-fit items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-indigo-700"
+        className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-3 text-base font-bold text-white shadow hover:bg-indigo-700"
       >
         ⬆️ Upload photos &amp; videos
       </a>
