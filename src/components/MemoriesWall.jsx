@@ -2,6 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import api, { apiError } from '../lib/api.js';
 
+// How many thumbnails to show before the "View all" button appears.
+const GALLERY_PREVIEW = 9;
+
 // In-site photo & video sharing backed by Cloudinary. Guests pick files from
 // their phone/laptop; each file uploads directly to Cloudinary (unsigned
 // preset) and we then record its URL via /api/gallery. No Google account, no
@@ -19,6 +22,7 @@ export default function MemoriesWall({ galleryUrl, compact = false }) {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [active, setActive] = useState(null); // lightbox item
+  const [showAll, setShowAll] = useState(false); // expand the full wall
   const [name, setName] = useState(() => localStorage.getItem('gt_gallery_name') || '');
   const [category, setCategory] = useState('public'); // 'public' | 'guesswho'
   const [guessAnswer, setGuessAnswer] = useState('');
@@ -291,10 +295,14 @@ export default function MemoriesWall({ galleryUrl, compact = false }) {
           <div className="mb-2 text-sm font-semibold text-slate-700">
             {items.length} shared {items.length === 1 ? 'memory' : 'memories'}
           </div>
-          {/* Capped, scrollable grid so the section stays tidy no matter how
-              many photos are shared. */}
-          <div className="grid max-h-[420px] grid-cols-3 gap-2 overflow-y-auto rounded-xl sm:grid-cols-4 md:grid-cols-5">
-            {items.map((it) => (
+          {/* Preview a handful of thumbnails; "View all" expands the rest into a
+              capped, scrollable grid so the section never dominates the page. */}
+          <div
+            className={`grid grid-cols-3 gap-2 rounded-xl sm:grid-cols-4 md:grid-cols-5 ${
+              showAll ? 'max-h-[460px] overflow-y-auto' : ''
+            }`}
+          >
+            {(showAll ? items : items.slice(0, GALLERY_PREVIEW)).map((it) => (
               <button
                 key={it.id}
                 onClick={() => setActive(it)}
@@ -315,6 +323,15 @@ export default function MemoriesWall({ galleryUrl, compact = false }) {
               </button>
             ))}
           </div>
+          {items.length > GALLERY_PREVIEW && (
+            <button
+              type="button"
+              onClick={() => setShowAll((v) => !v)}
+              className="mt-3 w-full rounded-xl border border-brand-300 bg-white py-2 text-sm font-semibold text-brand-700 hover:bg-brand-50"
+            >
+              {showAll ? 'Show less' : `View all ${items.length} photos & videos`}
+            </button>
+          )}
         </div>
       )}
 
