@@ -1552,6 +1552,21 @@ function WalkInRegistration({ onDone }) {
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
+  // Download the just-created guest's pass QR as a printable PNG.
+  const downloadPng = async (id, name) => {
+    try {
+      const res = await api.get(`/api/admin/users/${id}/pass.png`, { responseType: 'blob' });
+      const url = URL.createObjectURL(res.data);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${(name || 'guest').replace(/[^a-z0-9]+/gi, '_')}-pass.png`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setErr(apiError(e, 'Could not download pass'));
+    }
+  };
+
   const submit = async () => {
     setErr('');
     setDone(null);
@@ -1565,7 +1580,7 @@ function WalkInRegistration({ onDone }) {
         ...form,
         contributionAmount: Number(form.contributionAmount) || 0,
       });
-      setDone({ name: res.data.name, passUrl: res.data.passUrl });
+      setDone({ id: res.data.id, name: res.data.name, passUrl: res.data.passUrl });
       setForm(empty);
       onDone?.();
     } catch (e) {
@@ -1590,15 +1605,27 @@ function WalkInRegistration({ onDone }) {
       {done && (
         <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
           <span className="font-semibold">{done.name}</span> registered ✓
-          {done.passUrl && (
-            <>
-              {' '}
-              ·{' '}
-              <a href={done.passUrl} target="_blank" rel="noreferrer" className="font-semibold underline">
-                open pass
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            {done.passUrl && (
+              <a
+                href={done.passUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 rounded-lg bg-white px-2.5 py-1 text-xs font-semibold text-emerald-800 ring-1 ring-emerald-300 hover:bg-emerald-100"
+              >
+                🔗 Open pass
               </a>
-            </>
-          )}
+            )}
+            {done.id && (
+              <button
+                type="button"
+                onClick={() => downloadPng(done.id, done.name)}
+                className="inline-flex items-center gap-1 rounded-lg bg-ink-950 px-2.5 py-1 text-xs font-bold text-white hover:bg-ink-800"
+              >
+                ⬇ Download pass QR
+              </button>
+            )}
+          </div>
         </div>
       )}
 
