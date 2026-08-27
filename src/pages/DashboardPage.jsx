@@ -231,11 +231,11 @@ export default function DashboardPage() {
         </div>
       </form>
 
+      <GalleryCard />
+
       <ContributionSection userName={user?.name} />
 
       <EventPassSection />
-
-      <GalleryCard />
     </div>
   );
 }
