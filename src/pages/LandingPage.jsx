@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { QRCodeSVG } from 'qrcode.react';
 import { api } from '../lib/api.js';
 import { useCountdown } from '../hooks/useCountdown.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import Gallery from '../components/Gallery.jsx';
+import MemoriesWall from '../components/MemoriesWall.jsx';
 
 // Fallback event details if the API hasn't loaded yet. The backend
 // (/api/public/event) is the source of truth and overrides these.
@@ -304,47 +304,11 @@ function ContributorsWall({ contributors, count }) {
   );
 }
 
-// "Share your memories" — links to the shared Google Drive folder where guests
-// upload photos & short videos. QR shown for easy scanning at the venue.
+// "Share your memories" — in-site Cloudinary uploader + wall. `url` is the
+// optional external album link, used only as a fallback if Cloudinary isn't
+// configured on the backend.
 function GallerySection({ url }) {
-  if (!url || !/^https?:\/\//.test(url)) return null;
-  return (
-    <section>
-      <div className="overflow-hidden rounded-3xl border-2 border-brand-300 bg-gradient-to-br from-brand-50 to-white p-6 sm:p-8">
-        <div className="flex flex-col items-center gap-6 sm:flex-row sm:items-center sm:justify-between">
-          <div className="text-center sm:text-left">
-            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-600">
-              Memories
-            </div>
-            <h2 className="mt-2 text-2xl font-extrabold text-ink-950">
-              📸 Share your photos &amp; videos
-            </h2>
-            <p className="mt-2 max-w-md text-sm text-slate-600">
-              Add your snaps and short clips from the reunion to our shared album — no need to
-              rename anything, just upload from your phone. Short 5-second videos are perfect!
-            </p>
-            <a
-              href={url}
-              target="_blank"
-              rel="noreferrer"
-              className="mt-4 inline-flex items-center gap-2 rounded-xl bg-brand-400 px-5 py-3 text-sm font-extrabold text-ink-950 shadow hover:bg-brand-300"
-            >
-              ⬆️ Upload photos &amp; videos
-            </a>
-            <p className="mt-3 max-w-md text-xs text-slate-500">
-              📱 On a phone: open it in the <span className="font-semibold">Google Drive app</span>,
-              then tap <span className="font-semibold">+ → Upload</span> (make sure you're signed
-              into a Google account). 💻 On a laptop: just use the <span className="font-semibold">+ New</span> button.
-            </p>
-          </div>
-          <div className="shrink-0 rounded-2xl bg-white p-3 ring-1 ring-slate-200">
-            <QRCodeSVG value={url} size={128} level="M" includeMargin />
-            <div className="mt-1 text-center text-[11px] text-slate-400">Scan to upload</div>
-          </div>
-        </div>
-      </div>
-    </section>
-  );
+  return <MemoriesWall galleryUrl={url} />;
 }
 
 function ContributionCTA({ amount, note, user }) {

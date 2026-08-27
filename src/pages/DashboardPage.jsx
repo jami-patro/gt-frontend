@@ -3,6 +3,7 @@ import { QRCodeSVG, QRCodeCanvas } from 'qrcode.react';
 import { api, apiError } from '../lib/api.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import { compressImage } from '../lib/image.js';
+import MemoriesWall from '../components/MemoriesWall.jsx';
 
 const TSHIRT_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL'];
 
@@ -249,30 +250,9 @@ function GalleryCard() {
       .then((r) => setUrl(r.data?.galleryUrl || ''))
       .catch(() => {});
   }, []);
-  if (!url || !/^https?:\/\//.test(url)) return null;
-  return (
-    <div className="rounded-2xl border-2 border-brand-300 bg-gradient-to-br from-brand-50 to-white p-5 shadow-sm">
-      <div className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-600">Memories</div>
-      <h2 className="mt-1 text-2xl font-extrabold text-ink-950">📸 Share your photos &amp; videos</h2>
-      <p className="mt-1 text-sm text-slate-600">
-        Drop your snaps and short clips into our shared album — no renaming needed, just upload
-        straight from your phone.
-      </p>
-      <a
-        href={url}
-        target="_blank"
-        rel="noreferrer"
-        className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-brand-400 px-4 py-3 text-base font-extrabold text-ink-950 shadow hover:bg-brand-300"
-      >
-        ⬆️ Upload photos &amp; videos
-      </a>
-      <p className="mt-2 text-xs text-slate-500">
-        📱 On a phone: open it in the <span className="font-semibold">Google Drive app</span>, then
-        tap <span className="font-semibold">+ → Upload</span> (sign into a Google account first). 💻
-        On a laptop: use the <span className="font-semibold">+ New</span> button.
-      </p>
-    </div>
-  );
+  // In-site Cloudinary uploader + wall. Passes the optional external album link
+  // as a fallback (shown only if Cloudinary isn't configured).
+  return <MemoriesWall galleryUrl={url} compact />;
 }
 
 // Shown only to paid members: their personal QR pass for the event day plus a
