@@ -4,6 +4,49 @@ import { QRCodeSVG } from 'qrcode.react';
 import { api, apiError } from '../lib/api.js';
 
 const BRANCHES = ['Computer Science', 'Electrical', 'Mechanical', 'Civil', 'Electronics'];
+
+// Fetch a guest's bare QR PNG from the backend, then draw it onto a canvas with
+// their NAME + "Reunion Pass" label below (so a printed/downloaded pass is
+// identifiable — matching what the member sees on their dashboard). Returns
+// after triggering the download. Uses a blob object URL (same-origin, so the
+// canvas isn't tainted and toDataURL works).
+async function downloadPassWithName(id, name) {
+  const res = await api.get(`/api/admin/users/${id}/pass.png`, { responseType: 'blob' });
+  const objectUrl = URL.createObjectURL(res.data);
+  try {
+    const img = await new Promise((resolve, reject) => {
+      const i = new Image();
+      i.onload = () => resolve(i);
+      i.onerror = () => reject(new Error('Could not load QR image'));
+      i.src = objectUrl;
+    });
+    const qr = img.width || 600;
+    const footer = Math.round(qr * 0.22);
+    const canvas = document.createElement('canvas');
+    canvas.width = qr;
+    canvas.height = qr + footer;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0, qr, qr);
+    const displayName = name || 'Guest';
+    // Shrink the font a touch for long names so they fit on one line.
+    const nameSize = Math.round(qr * (displayName.length > 20 ? 0.05 : 0.07));
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#0a0a0b';
+    ctx.font = `bold ${nameSize}px -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif`;
+    ctx.fillText(displayName, qr / 2, qr + footer * 0.5);
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = `${Math.round(qr * 0.035)}px -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif`;
+    ctx.fillText('🎟️ Reunion Pass', qr / 2, qr + footer * 0.82);
+    const a = document.createElement('a');
+    a.href = canvas.toDataURL('image/png');
+    a.download = `${displayName.replace(/[^a-z0-9]+/gi, '_')}-pass.png`;
+    a.click();
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
 const TSHIRT_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL'];
 
 const ATTEND_BADGE = {
@@ -387,13 +430,7 @@ export default function AdminPage() {
   // working, so they can photograph it at the desk).
   const downloadPass = async (id, name) => {
     try {
-      const res = await api.get(`/api/admin/users/${id}/pass.png`, { responseType: 'blob' });
-      const url = URL.createObjectURL(res.data);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${(name || 'guest').replace(/[^a-z0-9]+/gi, '_')}-pass.png`;
-      a.click();
-      URL.revokeObjectURL(url);
+      await downloadPassWithName(id, name);
     } catch (err) {
       setError(apiError(err, 'Could not download pass QR'));
     }
@@ -1571,16 +1608,10 @@ function WalkInRegistration({ onDone }) {
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
-  // Download the just-created guest's pass QR as a printable PNG.
+  // Download the just-created guest's pass QR as a printable PNG (with name).
   const downloadPng = async (id, name) => {
     try {
-      const res = await api.get(`/api/admin/users/${id}/pass.png`, { responseType: 'blob' });
-      const url = URL.createObjectURL(res.data);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${(name || 'guest').replace(/[^a-z0-9]+/gi, '_')}-pass.png`;
-      a.click();
-      URL.revokeObjectURL(url);
+      await downloadPassWithName(id, name);
     } catch (e) {
       setErr(apiError(e, 'Could not download pass'));
     }
