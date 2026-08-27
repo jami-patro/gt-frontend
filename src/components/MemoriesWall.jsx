@@ -12,7 +12,7 @@ import api, { apiError } from '../lib/api.js';
 //   compact     — tighter layout for the dashboard card
 export default function MemoriesWall({ galleryUrl, compact = false }) {
   const [cfg, setCfg] = useState(null); // { cloudName, uploadPreset, enabled }
-  const [stats, setStats] = useState({ count: 0, photos: 0, videos: 0 }); // no images, just tallies
+  const [stats, setStats] = useState({ count: 0, photos: 0, videos: 0, guessWho: 0 }); // tallies only
   const [pending, setPending] = useState([]); // [{ file, previewUrl, isVideo }]
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -44,6 +44,7 @@ export default function MemoriesWall({ galleryUrl, compact = false }) {
         count: r.data?.count || 0,
         photos: r.data?.photos || 0,
         videos: r.data?.videos || 0,
+        guessWho: r.data?.guessWho || 0,
       });
     } catch {
       /* ignore */
@@ -360,13 +361,12 @@ export default function MemoriesWall({ galleryUrl, compact = false }) {
       )}
 
       {/* Encouraging counter — no images, keeps the surprise. */}
-      {stats.count > 0 && (
+      {(stats.count > 0 || stats.guessWho > 0) && (
         <div className="mt-4 rounded-xl bg-brand-100/60 px-4 py-3 text-center text-sm font-semibold text-brand-800">
-          🎁 {stats.count} {stats.count === 1 ? 'memory' : 'memories'} collected so far
-          <span className="font-normal text-brand-700">
-            {' '}({stats.photos} 📷 {stats.photos === 1 ? 'photo' : 'photos'} · {stats.videos} 🎥{' '}
-            {stats.videos === 1 ? 'video' : 'videos'})
-          </span>
+          🎁 {stats.count} {stats.count === 1 ? 'memory' : 'memories'} (public)
+          {stats.guessWho > 0 && (
+            <> · {stats.guessWho} (Guess Who? secret)</>
+          )}
           <div className="text-xs font-normal text-brand-700">revealed on event day!</div>
         </div>
       )}
