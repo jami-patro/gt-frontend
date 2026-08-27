@@ -5,6 +5,73 @@ import { api, apiError } from '../lib/api.js';
 
 const BRANCHES = ['Computer Science', 'Electrical', 'Mechanical', 'Civil', 'Electronics'];
 
+// On-screen popup showing a guest's pass QR + name, so they can just take a
+// photo and move on. Also has a Download button (saves the named PNG).
+function PassModal({ id, name, onClose }) {
+  const [url, setUrl] = useState('');
+  const [err, setErr] = useState('');
+  useEffect(() => {
+    let alive = true;
+    let obj;
+    api
+      .get(`/api/admin/users/${id}/pass.png`, { responseType: 'blob' })
+      .then((res) => {
+        obj = URL.createObjectURL(res.data);
+        if (alive) setUrl(obj);
+      })
+      .catch((e) => alive && setErr(apiError(e, 'Could not load pass QR')));
+    return () => {
+      alive = false;
+      if (obj) URL.revokeObjectURL(obj);
+    };
+  }, [id]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-sm rounded-2xl bg-white p-6 text-center shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="text-xs font-semibold uppercase tracking-widest text-slate-400">
+          🎟️ Reunion Pass
+        </div>
+        <div className="mt-1 text-xl font-extrabold text-ink-950">{name || 'Guest'}</div>
+        <div className="mt-4 flex justify-center">
+          {url ? (
+            <img src={url} alt="Pass QR" className="h-64 w-64 rounded-lg ring-1 ring-slate-200" />
+          ) : err ? (
+            <div className="py-16 text-sm text-rose-600">{err}</div>
+          ) : (
+            <div className="py-16 text-sm text-slate-400">Loading…</div>
+          )}
+        </div>
+        <p className="mt-3 text-sm font-medium text-slate-600">
+          📸 Take a photo of this QR to use at the venue.
+        </p>
+        <div className="mt-4 flex justify-center gap-2">
+          <button
+            type="button"
+            onClick={() => downloadPassWithName(id, name).catch(() => {})}
+            className="rounded-xl bg-ink-950 px-4 py-2 text-sm font-bold text-white hover:bg-ink-800"
+          >
+            ⬇ Download
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Fetch a guest's bare QR PNG from the backend, then draw it onto a canvas with
 // their NAME + "Reunion Pass" label below (so a printed/downloaded pass is
 // identifiable — matching what the member sees on their dashboard). Returns
@@ -104,6 +171,7 @@ export default function AdminPage() {
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [passModal, setPassModal] = useState(null); // { id, name } — on-screen pass popup
   const [query, setQuery] = useState('');
   const [payFilter, setPayFilter] = useState('all'); // all | paid | not_paid | pending | rejected
   const [checkinFilter, setCheckinFilter] = useState('all'); // all | in | out
@@ -617,6 +685,15 @@ export default function AdminPage() {
         </Link>
       </div>
 
+      {/* On-screen pass QR popup (for guests to photograph) */}
+      {passModal && (
+        <PassModal
+          id={passModal.id}
+          name={passModal.name}
+          onClose={() => setPassModal(null)}
+        />
+      )}
+
       {/* Walk-in registration (add a guest at the venue) */}
       <WalkInRegistration onDone={load} />
 
@@ -993,6 +1070,13 @@ export default function AdminPage() {
                       </div>
                     ) : (
                       <div className="flex items-center justify-end gap-1">
+                        <button
+                          onClick={() => setPassModal({ id: r.id, name: r.name })}
+                          title="Show pass QR (for photo)"
+                          className="grid h-7 w-7 place-items-center rounded-lg text-slate-600 hover:bg-slate-100"
+                        >
+                          🎫
+                        </button>
                         <button
                           onClick={() => downloadPass(r.id, r.name)}
                           title="Download pass QR"
@@ -1605,6 +1689,7 @@ function WalkInRegistration({ onDone }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [done, setDone] = useState(null); // { name, passUrl }
+  const [showPass, setShowPass] = useState(false); // on-screen pass popup
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
@@ -1669,6 +1754,15 @@ function WalkInRegistration({ onDone }) {
             {done.id && (
               <button
                 type="button"
+                onClick={() => setShowPass(true)}
+                className="inline-flex items-center gap-1 rounded-lg bg-white px-2.5 py-1 text-xs font-semibold text-emerald-800 ring-1 ring-emerald-300 hover:bg-emerald-100"
+              >
+                🎫 Show QR
+              </button>
+            )}
+            {done.id && (
+              <button
+                type="button"
                 onClick={() => downloadPng(done.id, done.name)}
                 className="inline-flex items-center gap-1 rounded-lg bg-ink-950 px-2.5 py-1 text-xs font-bold text-white hover:bg-ink-800"
               >
@@ -1677,6 +1771,10 @@ function WalkInRegistration({ onDone }) {
             )}
           </div>
         </div>
+      )}
+
+      {showPass && done?.id && (
+        <PassModal id={done.id} name={done.name} onClose={() => setShowPass(false)} />
       )}
 
       {open && (
