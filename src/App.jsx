@@ -9,6 +9,7 @@ import DashboardPage from './pages/DashboardPage.jsx';
 import AdminPage from './pages/AdminPage.jsx';
 import PassPage from './pages/PassPage.jsx';
 import StationPage from './pages/StationPage.jsx';
+import RevealPage from './pages/RevealPage.jsx';
 
 export default function App() {
   return (
@@ -33,6 +34,15 @@ export default function App() {
             element={
               <ProtectedRoute adminOnly>
                 <AdminPage />
+              </ProtectedRoute>
+            }
+          />
+          {/* Event-day full-screen reveal slideshow (admin only). */}
+          <Route
+            path="/reveal"
+            element={
+              <ProtectedRoute adminOnly>
+                <RevealPage />
               </ProtectedRoute>
             }
           />

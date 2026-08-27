@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import { api, apiError } from '../lib/api.js';
 
@@ -560,6 +561,24 @@ export default function AdminPage() {
           </p>
         </div>
       )}
+
+      {/* Event-day reveal slideshow launcher */}
+      <div className="card flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-bold text-slate-900">🎬 Reveal slideshow</h2>
+          <p className="text-sm text-slate-600">
+            Play all collected photos &amp; videos full-screen for the room. Includes a Guess Who
+            mode with tap-to-reveal answers. Open on your phone/laptop, then cast or connect to the
+            TV/projector.
+          </p>
+        </div>
+        <Link
+          to="/reveal"
+          className="inline-flex items-center gap-2 rounded-xl bg-ink-950 px-5 py-3 text-sm font-bold text-white hover:bg-ink-800"
+        >
+          ▶ Open reveal
+        </Link>
+      </div>
 
       {/* Walk-in registration (add a guest at the venue) */}
       <WalkInRegistration onDone={load} />
