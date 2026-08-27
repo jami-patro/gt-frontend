@@ -2,27 +2,22 @@ import { useEffect, useRef, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import api, { apiError } from '../lib/api.js';
 
-// How many thumbnails to show before the "View all" button appears.
-const GALLERY_PREVIEW = 9;
-
-// In-site photo & video sharing backed by Cloudinary. Guests pick files from
-// their phone/laptop; each file uploads directly to Cloudinary (unsigned
-// preset) and we then record its URL via /api/gallery. No Google account, no
-// app install. Falls back to a Drive/Photos link when Cloudinary isn't set up.
+// In-site photo & video collection backed by Cloudinary. Guests pick files,
+// see a local PREVIEW to confirm, then upload. Uploaded media is NOT shown
+// publicly — it's kept hidden as a surprise for the event day (organizers see
+// everything via an admin reveal view). We only show an encouraging counter.
 //
 // Props:
-//   galleryUrl  — optional external link (shown as a fallback / extra option)
+//   galleryUrl  — optional external link (fallback when Cloudinary isn't set up)
 //   compact     — tighter layout for the dashboard card
 export default function MemoriesWall({ galleryUrl, compact = false }) {
   const [cfg, setCfg] = useState(null); // { cloudName, uploadPreset, enabled }
-  const [items, setItems] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [count, setCount] = useState(0); // how many collected so far (no images)
+  const [pending, setPending] = useState([]); // [{ file, previewUrl, isVideo }]
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
-  const [active, setActive] = useState(null); // lightbox item
-  const [showAll, setShowAll] = useState(false); // expand the full wall
   const [name, setName] = useState(() => localStorage.getItem('gt_gallery_name') || '');
   const [category, setCategory] = useState('public'); // 'public' | 'guesswho'
   const [guessAnswer, setGuessAnswer] = useState('');
@@ -35,23 +30,50 @@ export default function MemoriesWall({ galleryUrl, compact = false }) {
       .get('/api/public/event')
       .then((r) => alive && setCfg(r.data?.cloudinary || null))
       .catch(() => {});
-    refresh().finally(() => alive && setLoading(false));
+    refreshCount();
     return () => {
       alive = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function refresh() {
+  async function refreshCount() {
     try {
-      const r = await api.get('/api/gallery', { params: { limit: 200 } });
-      setItems(r.data?.items || []);
+      const r = await api.get('/api/gallery');
+      setCount(r.data?.count || 0);
     } catch {
       /* ignore */
     }
   }
 
-  // Upload one file to Cloudinary via XHR (so we get progress), then record it.
+  // Selecting files just stages local previews — nothing uploads yet.
+  function onPick(e) {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+    setError('');
+    setNotice('');
+    const staged = [];
+    for (const f of files) {
+      if (f.size > 100 * 1024 * 1024) {
+        setError(`"${f.name}" is over 100MB and was skipped. Try a shorter clip.`);
+        continue;
+      }
+      staged.push({ file: f, previewUrl: URL.createObjectURL(f), isVideo: f.type.startsWith('video') });
+    }
+    setPending((prev) => [...prev, ...staged]);
+    if (fileRef.current) fileRef.current.value = '';
+  }
+
+  function removePending(idx) {
+    setPending((prev) => {
+      const next = [...prev];
+      const [removed] = next.splice(idx, 1);
+      if (removed) URL.revokeObjectURL(removed.previewUrl);
+      return next;
+    });
+  }
+
+  // Upload one file to Cloudinary via XHR (progress), then record it in our DB.
   function uploadOne(file) {
     return new Promise((resolve, reject) => {
       const form = new FormData();
@@ -59,8 +81,8 @@ export default function MemoriesWall({ galleryUrl, compact = false }) {
       form.append('upload_preset', cfg.uploadPreset);
       const xhr = new XMLHttpRequest();
       xhr.open('POST', `https://api.cloudinary.com/v1_1/${cfg.cloudName}/auto/upload`);
-      xhr.upload.onprogress = (e) => {
-        if (e.lengthComputable) setProgress(Math.round((e.loaded / e.total) * 100));
+      xhr.upload.onprogress = (ev) => {
+        if (ev.lengthComputable) setProgress(Math.round((ev.loaded / ev.total) * 100));
       };
       xhr.onload = async () => {
         if (xhr.status < 200 || xhr.status >= 300) return reject(new Error('Upload failed'));
@@ -69,7 +91,7 @@ export default function MemoriesWall({ galleryUrl, compact = false }) {
           await api.post('/api/gallery', {
             url: res.secure_url,
             publicId: res.public_id,
-            resourceType: res.resource_type, // 'image' | 'video'
+            resourceType: res.resource_type,
             format: res.format,
             bytes: res.bytes,
             width: res.width,
@@ -88,46 +110,40 @@ export default function MemoriesWall({ galleryUrl, compact = false }) {
     });
   }
 
-  async function onFiles(e) {
-    const files = Array.from(e.target.files || []);
-    if (files.length === 0) return;
+  async function confirmUpload() {
+    if (pending.length === 0) return;
     setError('');
     setNotice('');
     if (!loggedIn && !name.trim()) {
       setError('Please add your name first so we know who shared these.');
-      if (fileRef.current) fileRef.current.value = '';
       return;
     }
     if (!loggedIn) localStorage.setItem('gt_gallery_name', name.trim());
     setUploading(true);
     try {
-      for (const f of files) {
+      for (const p of pending) {
         setProgress(0);
-        // Guard against very large uploads (Cloudinary free video ~100MB).
-        if (f.size > 100 * 1024 * 1024) {
-          setError(`"${f.name}" is over 100MB and was skipped. Try a shorter clip.`);
-          continue;
-        }
         // eslint-disable-next-line no-await-in-loop
-        await uploadOne(f);
+        await uploadOne(p.file);
       }
-      await refresh();
+      const n = pending.length;
+      // Clear staged previews.
+      pending.forEach((p) => URL.revokeObjectURL(p.previewUrl));
+      setPending([]);
+      setGuessAnswer('');
+      await refreshCount();
       setNotice(
-        category === 'guesswho'
-          ? '🤫 Added to the secret "Guess Who?" pile — it won\'t show in the wall.'
-          : '✅ Thanks! Your memories are in the wall below.',
+        `🎁 Thanks! ${n} ${n === 1 ? 'memory' : 'memories'} saved — they'll be revealed on event day. Nothing is shown here to keep it a surprise!`,
       );
     } catch (err) {
       setError(apiError(err, 'Upload failed. Please try again.'));
     } finally {
       setUploading(false);
       setProgress(0);
-      if (fileRef.current) fileRef.current.value = '';
     }
   }
 
   const enabled = cfg?.enabled;
-  const HeadingTag = compact ? 'h2' : 'h2';
 
   return (
     <section
@@ -138,16 +154,16 @@ export default function MemoriesWall({ galleryUrl, compact = false }) {
       }
     >
       <div className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-600">Memories</div>
-      <HeadingTag className={compact ? 'mt-1 text-2xl font-extrabold text-ink-950' : 'mt-2 text-2xl font-extrabold text-ink-950 sm:text-3xl'}>
+      <h2 className={compact ? 'mt-1 text-2xl font-extrabold text-ink-950' : 'mt-2 text-2xl font-extrabold text-ink-950 sm:text-3xl'}>
         📸 Share your photos &amp; videos
-      </HeadingTag>
+      </h2>
       <p className="mt-1 max-w-2xl text-sm text-slate-600">
-        Pick photos or short clips straight from your phone or laptop — they upload right here, no
-        app or Google account needed.
+        Add photos or short clips from your phone or laptop. They stay a{' '}
+        <span className="font-semibold text-ink-950">surprise</span> — we collect them now and
+        reveal everything on the reunion day! 🎉
       </p>
 
-      {/* Scan-to-upload QR — great for printing/showing at the venue so guests
-          can open this page on their phone and upload on the spot. */}
+      {/* Scan-to-upload QR — for printing/showing at the venue. */}
       {!compact && (
         <div className="mt-4 inline-flex items-center gap-3 rounded-2xl border border-brand-200 bg-white p-3">
           <QRCodeSVG value={window.location.origin} size={96} level="M" includeMargin />
@@ -160,7 +176,6 @@ export default function MemoriesWall({ galleryUrl, compact = false }) {
         </div>
       )}
 
-      {/* Uploader */}
       {enabled ? (
         <div className="mt-4 space-y-3">
           {/* Public memory vs Guess Who? — radio choice */}
@@ -181,8 +196,8 @@ export default function MemoriesWall({ galleryUrl, compact = false }) {
                 className="mt-1 accent-brand-500"
               />
               <span>
-                <span className="block font-bold text-ink-950">📸 Public memory</span>
-                <span className="block text-xs text-slate-500">Shows in the shared wall below.</span>
+                <span className="block font-bold text-ink-950">📸 Reunion memory</span>
+                <span className="block text-xs text-slate-500">Photos &amp; clips for the reveal.</span>
               </span>
             </label>
             <label
@@ -201,10 +216,8 @@ export default function MemoriesWall({ galleryUrl, compact = false }) {
                 className="mt-1 accent-brand-500"
               />
               <span>
-                <span className="block font-bold text-ink-950">🤔 Guess Who? (secret)</span>
-                <span className="block text-xs text-slate-500">
-                  Old photo for the game — hidden from the wall.
-                </span>
+                <span className="block font-bold text-ink-950">🤔 Guess Who? photo</span>
+                <span className="block text-xs text-slate-500">Old photo for the game.</span>
               </span>
             </label>
           </div>
@@ -226,6 +239,35 @@ export default function MemoriesWall({ galleryUrl, compact = false }) {
               onChange={(e) => setName(e.target.value)}
             />
           )}
+
+          {/* Local previews (before upload) so the guest can confirm. */}
+          {pending.length > 0 && (
+            <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5">
+              {pending.map((p, i) => (
+                <div key={i} className="relative aspect-square overflow-hidden rounded-xl border border-slate-200 bg-white">
+                  {p.isVideo ? (
+                    <video src={p.previewUrl} className="h-full w-full object-cover" muted />
+                  ) : (
+                    <img src={p.previewUrl} alt="preview" className="h-full w-full object-cover" />
+                  )}
+                  {p.isVideo && (
+                    <span className="absolute inset-0 grid place-items-center bg-black/25 text-2xl text-white">▶</span>
+                  )}
+                  {!uploading && (
+                    <button
+                      type="button"
+                      onClick={() => removePending(i)}
+                      className="absolute right-1 top-1 grid h-6 w-6 place-items-center rounded-full bg-black/60 text-xs text-white hover:bg-black/80"
+                      aria-label="Remove"
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
           <div className="flex flex-wrap items-center gap-3">
             <input
               ref={fileRef}
@@ -233,17 +275,39 @@ export default function MemoriesWall({ galleryUrl, compact = false }) {
               accept="image/*,video/*"
               multiple
               className="hidden"
-              onChange={onFiles}
+              onChange={onPick}
               disabled={uploading}
             />
-            <button
-              type="button"
-              onClick={() => fileRef.current?.click()}
-              disabled={uploading}
-              className="inline-flex items-center gap-2 rounded-xl bg-brand-400 px-5 py-3 text-sm font-extrabold text-ink-950 shadow hover:bg-brand-300 disabled:opacity-60"
-            >
-              {uploading ? `Uploading… ${progress}%` : '⬆️ Upload photos & videos'}
-            </button>
+            {pending.length === 0 ? (
+              <button
+                type="button"
+                onClick={() => fileRef.current?.click()}
+                disabled={uploading}
+                className="inline-flex items-center gap-2 rounded-xl bg-brand-400 px-5 py-3 text-sm font-extrabold text-ink-950 shadow hover:bg-brand-300 disabled:opacity-60"
+              >
+                📷 Choose photos &amp; videos
+              </button>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={confirmUpload}
+                  disabled={uploading}
+                  className="inline-flex items-center gap-2 rounded-xl bg-brand-400 px-5 py-3 text-sm font-extrabold text-ink-950 shadow hover:bg-brand-300 disabled:opacity-60"
+                >
+                  {uploading ? `Uploading… ${progress}%` : `✅ Confirm & upload (${pending.length})`}
+                </button>
+                {!uploading && (
+                  <button
+                    type="button"
+                    onClick={() => fileRef.current?.click()}
+                    className="text-sm font-semibold text-brand-700 underline"
+                  >
+                    + add more
+                  </button>
+                )}
+              </>
+            )}
             {galleryUrl && /^https?:\/\//.test(galleryUrl) && (
               <a
                 href={galleryUrl}
@@ -255,14 +319,16 @@ export default function MemoriesWall({ galleryUrl, compact = false }) {
               </a>
             )}
           </div>
+
           {uploading && (
             <div className="h-1.5 w-full max-w-xs overflow-hidden rounded-full bg-brand-100">
               <div className="h-full bg-brand-400 transition-all" style={{ width: `${progress}%` }} />
             </div>
           )}
+
           <p className="text-xs text-slate-500">
-            Photos and short videos (up to ~100MB / a few seconds) work great. You can pick several
-            at once.
+            Photos and short videos (up to ~100MB) work great. You'll see a preview to confirm
+            before sending — after that they're hidden until the big reveal. 🤫
           </p>
         </div>
       ) : galleryUrl && /^https?:\/\//.test(galleryUrl) ? (
@@ -289,75 +355,10 @@ export default function MemoriesWall({ galleryUrl, compact = false }) {
         </div>
       )}
 
-      {/* Wall */}
-      {!loading && items.length > 0 && (
-        <div className="mt-6">
-          <div className="mb-2 text-sm font-semibold text-slate-700">
-            {items.length} shared {items.length === 1 ? 'memory' : 'memories'}
-          </div>
-          {/* Preview a handful of thumbnails; "View all" expands the rest into a
-              capped, scrollable grid so the section never dominates the page. */}
-          <div
-            className={`grid grid-cols-3 gap-2 rounded-xl sm:grid-cols-4 md:grid-cols-5 ${
-              showAll ? 'max-h-[460px] overflow-y-auto' : ''
-            }`}
-          >
-            {(showAll ? items : items.slice(0, GALLERY_PREVIEW)).map((it) => (
-              <button
-                key={it.id}
-                onClick={() => setActive(it)}
-                className="group relative aspect-square overflow-hidden rounded-xl border border-slate-200 bg-white"
-                title={it.uploaderName ? `Shared by ${it.uploaderName}` : ''}
-              >
-                <img
-                  src={it.thumbUrl}
-                  alt={it.uploaderName || 'Shared memory'}
-                  loading="lazy"
-                  className="h-full w-full object-cover transition group-hover:scale-105"
-                />
-                {it.type === 'video' && (
-                  <span className="absolute inset-0 grid place-items-center bg-black/25 text-2xl text-white">
-                    ▶
-                  </span>
-                )}
-              </button>
-            ))}
-          </div>
-          {items.length > GALLERY_PREVIEW && (
-            <button
-              type="button"
-              onClick={() => setShowAll((v) => !v)}
-              className="mt-3 w-full rounded-xl border border-brand-300 bg-white py-2 text-sm font-semibold text-brand-700 hover:bg-brand-50"
-            >
-              {showAll ? 'Show less' : `View all ${items.length} photos & videos`}
-            </button>
-          )}
-        </div>
-      )}
-
-      {/* Lightbox */}
-      {active && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
-          onClick={() => setActive(null)}
-        >
-          <div className="max-h-full max-w-3xl" onClick={(e) => e.stopPropagation()}>
-            {active.type === 'video' ? (
-              <video src={active.url} controls autoPlay className="max-h-[80vh] w-auto rounded-lg" />
-            ) : (
-              <img src={active.url} alt="" className="max-h-[80vh] w-auto rounded-lg bg-white" />
-            )}
-            {active.uploaderName && (
-              <p className="mt-2 text-center text-sm text-white/80">Shared by {active.uploaderName}</p>
-            )}
-          </div>
-          <button
-            onClick={() => setActive(null)}
-            className="absolute right-4 top-4 grid h-10 w-10 place-items-center rounded-full bg-white/10 text-2xl text-white hover:bg-white/20"
-            aria-label="Close"
-          >
-            ×
-          </button>
+      {/* Encouraging counter — no images, keeps the surprise. */}
+      {count > 0 && (
+        <div className="mt-4 rounded-xl bg-brand-100/60 px-4 py-3 text-center text-sm font-semibold text-brand-800">
+          🎁 {count} {count === 1 ? 'memory' : 'memories'} collected so far — revealed on event day!
         </div>
       )}
     </section>
