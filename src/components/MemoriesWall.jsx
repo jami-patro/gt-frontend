@@ -84,6 +84,11 @@ export default function MemoriesWall({ galleryUrl, compact = false }) {
       const form = new FormData();
       form.append('file', file);
       form.append('upload_preset', cfg.uploadPreset);
+      // Organize in Cloudinary by choice (dynamic folder — doesn't change URL).
+      form.append(
+        'asset_folder',
+        category === 'guesswho' ? 'oec-reunion/secret' : 'oec-reunion/public',
+      );
       const xhr = new XMLHttpRequest();
       xhr.open('POST', `https://api.cloudinary.com/v1_1/${cfg.cloudName}/auto/upload`);
       xhr.upload.onprogress = (ev) => {
