@@ -144,34 +144,50 @@ export default function MemoriesWall({ galleryUrl, compact = false }) {
       {/* Uploader */}
       {enabled ? (
         <div className="mt-4 space-y-3">
-          {/* Public memory vs Guess Who? */}
+          {/* Public memory vs Guess Who? — radio choice */}
           <div className="flex flex-col gap-2 sm:flex-row">
-            <button
-              type="button"
-              onClick={() => setCategory('public')}
-              className={`flex-1 rounded-xl border px-3 py-2 text-left text-sm transition ${
+            <label
+              className={`flex flex-1 cursor-pointer items-start gap-2 rounded-xl border px-3 py-2 text-sm transition ${
                 category === 'public'
                   ? 'border-brand-400 bg-brand-50 ring-2 ring-brand-300'
                   : 'border-slate-200 bg-white hover:bg-slate-50'
               }`}
             >
-              <div className="font-bold text-ink-950">📸 Public memory</div>
-              <div className="text-xs text-slate-500">Shows in the shared wall below.</div>
-            </button>
-            <button
-              type="button"
-              onClick={() => setCategory('guesswho')}
-              className={`flex-1 rounded-xl border px-3 py-2 text-left text-sm transition ${
+              <input
+                type="radio"
+                name="memory-category"
+                value="public"
+                checked={category === 'public'}
+                onChange={() => setCategory('public')}
+                className="mt-1 accent-brand-500"
+              />
+              <span>
+                <span className="block font-bold text-ink-950">📸 Public memory</span>
+                <span className="block text-xs text-slate-500">Shows in the shared wall below.</span>
+              </span>
+            </label>
+            <label
+              className={`flex flex-1 cursor-pointer items-start gap-2 rounded-xl border px-3 py-2 text-sm transition ${
                 category === 'guesswho'
                   ? 'border-brand-400 bg-brand-50 ring-2 ring-brand-300'
                   : 'border-slate-200 bg-white hover:bg-slate-50'
               }`}
             >
-              <div className="font-bold text-ink-950">🤔 Guess Who? (secret)</div>
-              <div className="text-xs text-slate-500">
-                Old photo for the game — hidden from the wall.
-              </div>
-            </button>
+              <input
+                type="radio"
+                name="memory-category"
+                value="guesswho"
+                checked={category === 'guesswho'}
+                onChange={() => setCategory('guesswho')}
+                className="mt-1 accent-brand-500"
+              />
+              <span>
+                <span className="block font-bold text-ink-950">🤔 Guess Who? (secret)</span>
+                <span className="block text-xs text-slate-500">
+                  Old photo for the game — hidden from the wall.
+                </span>
+              </span>
+            </label>
           </div>
 
           {category === 'guesswho' && (
