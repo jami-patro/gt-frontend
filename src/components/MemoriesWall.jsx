@@ -12,7 +12,7 @@ import api, { apiError } from '../lib/api.js';
 //   compact     — tighter layout for the dashboard card
 export default function MemoriesWall({ galleryUrl, compact = false }) {
   const [cfg, setCfg] = useState(null); // { cloudName, uploadPreset, enabled }
-  const [count, setCount] = useState(0); // how many collected so far (no images)
+  const [stats, setStats] = useState({ count: 0, photos: 0, videos: 0 }); // no images, just tallies
   const [pending, setPending] = useState([]); // [{ file, previewUrl, isVideo }]
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -40,7 +40,11 @@ export default function MemoriesWall({ galleryUrl, compact = false }) {
   async function refreshCount() {
     try {
       const r = await api.get('/api/gallery');
-      setCount(r.data?.count || 0);
+      setStats({
+        count: r.data?.count || 0,
+        photos: r.data?.photos || 0,
+        videos: r.data?.videos || 0,
+      });
     } catch {
       /* ignore */
     }
@@ -356,9 +360,14 @@ export default function MemoriesWall({ galleryUrl, compact = false }) {
       )}
 
       {/* Encouraging counter — no images, keeps the surprise. */}
-      {count > 0 && (
+      {stats.count > 0 && (
         <div className="mt-4 rounded-xl bg-brand-100/60 px-4 py-3 text-center text-sm font-semibold text-brand-800">
-          🎁 {count} {count === 1 ? 'memory' : 'memories'} collected so far — revealed on event day!
+          🎁 {stats.count} {stats.count === 1 ? 'memory' : 'memories'} collected so far
+          <span className="font-normal text-brand-700">
+            {' '}({stats.photos} 📷 {stats.photos === 1 ? 'photo' : 'photos'} · {stats.videos} 🎥{' '}
+            {stats.videos === 1 ? 'video' : 'videos'})
+          </span>
+          <div className="text-xs font-normal text-brand-700">revealed on event day!</div>
         </div>
       )}
     </section>
