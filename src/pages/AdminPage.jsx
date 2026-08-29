@@ -175,7 +175,7 @@ export default function AdminPage() {
   const [query, setQuery] = useState('');
   const [payFilter, setPayFilter] = useState('all'); // all | paid | not_paid | pending | rejected
   const [checkinFilter, setCheckinFilter] = useState('all'); // all | in | out
-  const [teeFilter, setTeeFilter] = useState('all'); // all | mens | womens
+  const [teeFilter, setTeeFilter] = useState('all'); // all | mens | womens | nosize
   const [methodFilter, setMethodFilter] = useState('all'); // all | <paymentMethodUsed value>
   const [attendanceFilter, setAttendanceFilter] = useState('all'); // all | yes | maybe | no
   const [emailsCopied, setEmailsCopied] = useState(0); // count of emails copied, for feedback
@@ -350,7 +350,7 @@ export default function AdminPage() {
 
   // Only approved members count toward attendance/food/headcount totals.
   const summary = useMemo(() => {
-    const s = { attending: 0, maybe: 0, no: 0, veg: 0, nonVeg: 0, guests: 0, pending: 0, paid: 0, collected: 0, pendingPay: 0, unpaid: 0, needRoom: 0, mensTee: 0, womensTee: 0 };
+    const s = { attending: 0, maybe: 0, no: 0, veg: 0, nonVeg: 0, guests: 0, pending: 0, paid: 0, collected: 0, pendingPay: 0, unpaid: 0, needRoom: 0, mensTee: 0, womensTee: 0, noSizeTee: 0 };
     for (const r of records) {
       if (r.paymentStatus === 'paid') s.paid += 1;
       if (r.paymentStatus === 'pending') s.pendingPay += 1;
@@ -359,6 +359,8 @@ export default function AdminPage() {
       // T-shirt fit tally (across all members, for ordering).
       if (r.tshirtFit === 'womens') s.womensTee += 1;
       else s.mensTee += 1;
+      // Members who haven't picked a size yet (need a nudge).
+      if (!r.tshirtSize) s.noSizeTee += 1;
       s.collected += Number(r.contributionAmount) || 0;
       if (!r.approved) {
         s.pending += 1;
@@ -472,6 +474,7 @@ export default function AdminPage() {
       if (checkinFilter === 'out' && r.eventPass?.checkedIn) return false;
       if (teeFilter === 'womens' && r.tshirtFit !== 'womens') return false;
       if (teeFilter === 'mens' && r.tshirtFit === 'womens') return false;
+      if (teeFilter === 'nosize' && r.tshirtSize) return false;
       if (methodFilter !== 'all' && (r.paymentMethodUsed || 'Unspecified') !== methodFilter) return false;
       if (attendanceFilter !== 'all' && r.attendance !== attendanceFilter) return false;
       if (!q) return true;
@@ -946,6 +949,7 @@ export default function AdminPage() {
             ['all', '👕 All fits', records.length],
             ['mens', "♂ Men's", summary.mensTee],
             ['womens', "♀ Women's", summary.womensTee],
+            ['nosize', '❓ No size yet', summary.noSizeTee],
           ].map(([value, label, count]) => (
             <button
               key={value}
