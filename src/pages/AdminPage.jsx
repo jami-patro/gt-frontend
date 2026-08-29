@@ -1702,6 +1702,8 @@ function EmailBroadcast({ records }) {
           {/* T-shirt fit groups — for tee-order coordination. */}
           <Tag label="♂ Men's tee" emails={emailsWhere((p) => (p.tshirtFit || 'mens') !== 'womens')} />
           <Tag label="♀ Women's tee" emails={emailsWhere((p) => p.tshirtFit === 'womens')} />
+          {/* People who haven't picked a T-shirt size yet — nudge them. */}
+          <Tag label="❓ No tee size" emails={emailsWhere((p) => !p.tshirtSize)} />
           {/* Payee groups — e.g. mail everyone who paid to a given account (refunds). */}
           {payees.map((m) => (
             <Tag
