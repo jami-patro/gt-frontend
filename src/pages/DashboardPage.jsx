@@ -175,7 +175,15 @@ export default function DashboardPage() {
       )}
 
       <form onSubmit={save} className="card space-y-6">
-        {error && <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div>}
+        {error && (
+          <div
+            role="alert"
+            className="flex items-start gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2.5 text-sm leading-snug text-rose-700 break-words"
+          >
+            <span aria-hidden className="mt-0.5 shrink-0">⚠️</span>
+            <span className="min-w-0 flex-1">{error}</span>
+          </div>
+        )}
 
         {/* Attendance vote */}
         <div>
