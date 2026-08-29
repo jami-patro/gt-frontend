@@ -177,6 +177,7 @@ export default function AdminPage() {
   const [checkinFilter, setCheckinFilter] = useState('all'); // all | in | out
   const [teeFilter, setTeeFilter] = useState('all'); // all | mens | womens
   const [methodFilter, setMethodFilter] = useState('all'); // all | <paymentMethodUsed value>
+  const [attendanceFilter, setAttendanceFilter] = useState('all'); // all | yes | maybe | no
   const [emailsCopied, setEmailsCopied] = useState(0); // count of emails copied, for feedback
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 10;
@@ -442,6 +443,17 @@ export default function AdminPage() {
     return c;
   }, [records]);
 
+  // Attendance filter counts (for tee-size planning by who's coming).
+  const attendanceCounts = useMemo(() => {
+    const c = { all: records.length, yes: 0, maybe: 0, no: 0 };
+    for (const r of records) {
+      if (r.attendance === 'yes') c.yes += 1;
+      else if (r.attendance === 'maybe') c.maybe += 1;
+      else if (r.attendance === 'no') c.no += 1;
+    }
+    return c;
+  }, [records]);
+
   // Check-in filter counts.
   const checkinCounts = useMemo(() => {
     const c = { all: records.length, in: 0, out: 0 };
@@ -461,6 +473,7 @@ export default function AdminPage() {
       if (teeFilter === 'womens' && r.tshirtFit !== 'womens') return false;
       if (teeFilter === 'mens' && r.tshirtFit === 'womens') return false;
       if (methodFilter !== 'all' && (r.paymentMethodUsed || 'Unspecified') !== methodFilter) return false;
+      if (attendanceFilter !== 'all' && r.attendance !== attendanceFilter) return false;
       if (!q) return true;
       return [r.name, r.email, r.branch, r.rollNumber]
         .filter(Boolean)
@@ -472,7 +485,7 @@ export default function AdminPage() {
       if (a.approved !== b.approved) return a.approved ? 1 : -1; // pending first
       return new Date(b.createdAt || 0) - new Date(a.createdAt || 0); // newest first
     });
-  }, [records, query, payFilter, checkinFilter, teeFilter, methodFilter]);
+  }, [records, query, payFilter, checkinFilter, teeFilter, methodFilter, attendanceFilter]);
 
   // Pagination (client-side — all records are already loaded).
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
@@ -485,7 +498,7 @@ export default function AdminPage() {
   // Reset to the first page whenever the filters change.
   useEffect(() => {
     setPage(1);
-  }, [query, payFilter, checkinFilter, teeFilter, methodFilter]);
+  }, [query, payFilter, checkinFilter, teeFilter, methodFilter, attendanceFilter]);
 
   // Download the CSV through axios so the auth header is attached, then
   // trigger a browser download from the blob.
@@ -868,6 +881,36 @@ export default function AdminPage() {
                 }`}
               >
                 {checkinCounts[value] ?? 0}
+              </span>
+            </button>
+          ))}
+        </div>
+
+        {/* Attendance filter — for tee-size planning by who's coming */}
+        <div className="flex flex-wrap gap-2">
+          {[
+            ['all', 'All'],
+            ['yes', "🎉 Coming"],
+            ['maybe', '🤔 Maybe'],
+            ['no', "🚫 Can't come"],
+          ].map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setAttendanceFilter(value)}
+              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                attendanceFilter === value
+                  ? 'border-brand-500 bg-brand-500 text-ink-950'
+                  : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50'
+              }`}
+            >
+              {label}
+              <span
+                className={`rounded-full px-1.5 py-0.5 text-[10px] tabular-nums ${
+                  attendanceFilter === value ? 'bg-black/10 text-ink-950' : 'bg-slate-100 text-slate-500'
+                }`}
+              >
+                {attendanceCounts[value] ?? 0}
               </span>
             </button>
           ))}
