@@ -176,6 +176,7 @@ export default function AdminPage() {
   const [payFilter, setPayFilter] = useState('all'); // all | paid | not_paid | pending | rejected
   const [checkinFilter, setCheckinFilter] = useState('all'); // all | in | out
   const [teeFilter, setTeeFilter] = useState('all'); // all | mens | womens
+  const [methodFilter, setMethodFilter] = useState('all'); // all | <paymentMethodUsed value>
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 10;
   const [editingId, setEditingId] = useState(null); // row id being edited inline
@@ -458,6 +459,7 @@ export default function AdminPage() {
       if (checkinFilter === 'out' && r.eventPass?.checkedIn) return false;
       if (teeFilter === 'womens' && r.tshirtFit !== 'womens') return false;
       if (teeFilter === 'mens' && r.tshirtFit === 'womens') return false;
+      if (methodFilter !== 'all' && (r.paymentMethodUsed || 'Unspecified') !== methodFilter) return false;
       if (!q) return true;
       return [r.name, r.email, r.branch, r.rollNumber]
         .filter(Boolean)
@@ -469,7 +471,7 @@ export default function AdminPage() {
       if (a.approved !== b.approved) return a.approved ? 1 : -1; // pending first
       return new Date(b.createdAt || 0) - new Date(a.createdAt || 0); // newest first
     });
-  }, [records, query, payFilter, checkinFilter, teeFilter]);
+  }, [records, query, payFilter, checkinFilter, teeFilter, methodFilter]);
 
   // Pagination (client-side — all records are already loaded).
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
@@ -482,7 +484,7 @@ export default function AdminPage() {
   // Reset to the first page whenever the filters change.
   useEffect(() => {
     setPage(1);
-  }, [query, payFilter, checkinFilter, teeFilter]);
+  }, [query, payFilter, checkinFilter, teeFilter, methodFilter]);
 
   // Download the CSV through axios so the auth header is attached, then
   // trigger a browser download from the blob.
@@ -874,6 +876,35 @@ export default function AdminPage() {
             </button>
           ))}
         </div>
+
+        {/* Payment payee filter (for refunds — who paid to which account) */}
+        {collectedByMethod.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {[['all', '💳 All payees', collectedByMethod.reduce((n, [, v]) => n + v.count, 0)]]
+              .concat(collectedByMethod.map(([label, v]) => [label, label, v.count]))
+              .map(([value, label, count]) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setMethodFilter(value)}
+                  className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                    methodFilter === value
+                      ? 'border-indigo-600 bg-indigo-600 text-white'
+                      : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50'
+                  }`}
+                >
+                  {label}
+                  <span
+                    className={`rounded-full px-1.5 py-0.5 text-[10px] tabular-nums ${
+                      methodFilter === value ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'
+                    }`}
+                  >
+                    {count}
+                  </span>
+                </button>
+              ))}
+          </div>
+        )}
       </div>
 
       {/* Table */}
