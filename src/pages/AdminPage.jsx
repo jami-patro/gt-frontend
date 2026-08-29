@@ -487,6 +487,30 @@ export default function AdminPage() {
     });
   }, [records, query, payFilter, checkinFilter, teeFilter, methodFilter, attendanceFilter]);
 
+  // T-shirt order breakdown for the CURRENT filter — per size, split by fit,
+  // so applying Coming / Paid / etc. tells you exactly how many to order.
+  const teeBreakdown = useMemo(() => {
+    const SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL'];
+    const rows = SIZES.map((size) => ({ size, mens: 0, womens: 0, total: 0 }));
+    const bySize = Object.fromEntries(rows.map((r) => [r.size, r]));
+    let noSize = 0;
+    let mensTotal = 0;
+    let womensTotal = 0;
+    for (const r of filtered) {
+      const size = r.tshirtSize;
+      const womens = r.tshirtFit === 'womens';
+      if (womens) womensTotal += 1;
+      else mensTotal += 1;
+      if (!size || !bySize[size]) {
+        noSize += 1;
+        continue;
+      }
+      bySize[size][womens ? 'womens' : 'mens'] += 1;
+      bySize[size].total += 1;
+    }
+    return { rows, noSize, mensTotal, womensTotal, total: filtered.length };
+  }, [filtered]);
+
   // Pagination (client-side — all records are already loaded).
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
@@ -972,6 +996,58 @@ export default function AdminPage() {
                 </button>
               ))}
           </div>
+        )}
+      </div>
+
+      {/* T-shirt order breakdown — reflects the current filter */}
+      <div className="card">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-sm font-bold text-slate-900">
+            👕 T-shirt order — {teeBreakdown.total} in this view
+          </h2>
+          <span className="text-xs text-slate-500">
+            ♂ {teeBreakdown.mensTotal} men's · ♀ {teeBreakdown.womensTotal} women's
+            {teeBreakdown.noSize > 0 ? ` · ${teeBreakdown.noSize} no size set` : ''}
+          </span>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[420px] text-sm">
+            <thead>
+              <tr className="border-b border-slate-100 text-left text-xs uppercase tracking-wide text-slate-400">
+                <th className="py-1.5 pr-3 font-semibold">Size</th>
+                <th className="py-1.5 pr-3 text-right font-semibold">♂ Men's</th>
+                <th className="py-1.5 pr-3 text-right font-semibold">♀ Women's</th>
+                <th className="py-1.5 text-right font-semibold">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {teeBreakdown.rows.map((r) => (
+                <tr
+                  key={r.size}
+                  className={`border-b border-slate-50 ${r.total === 0 ? 'text-slate-300' : 'text-slate-700'}`}
+                >
+                  <td className="py-1.5 pr-3 font-semibold">{r.size}</td>
+                  <td className="py-1.5 pr-3 text-right tabular-nums">{r.mens}</td>
+                  <td className="py-1.5 pr-3 text-right tabular-nums">{r.womens}</td>
+                  <td className="py-1.5 text-right font-bold tabular-nums">{r.total}</td>
+                </tr>
+              ))}
+              <tr className="text-slate-900">
+                <td className="py-1.5 pr-3 text-xs font-bold uppercase tracking-wide">Total</td>
+                <td className="py-1.5 pr-3 text-right font-bold tabular-nums">{teeBreakdown.mensTotal}</td>
+                <td className="py-1.5 pr-3 text-right font-bold tabular-nums">{teeBreakdown.womensTotal}</td>
+                <td className="py-1.5 text-right font-bold tabular-nums">
+                  {teeBreakdown.mensTotal + teeBreakdown.womensTotal}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        {teeBreakdown.noSize > 0 && (
+          <p className="mt-2 text-xs text-amber-600">
+            {teeBreakdown.noSize} {teeBreakdown.noSize === 1 ? 'person hasn’t' : 'people haven’t'} set a
+            size yet — not counted in the size rows above.
+          </p>
         )}
       </div>
 
