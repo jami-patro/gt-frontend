@@ -1418,6 +1418,19 @@ function EmailBroadcast({ records }) {
     [people],
   );
 
+  // Distinct payees/methods among paid members — for refund/payee-specific mails.
+  const payees = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          people
+            .filter((p) => p.paymentStatus === 'paid' && p.paymentMethodUsed)
+            .map((p) => p.paymentMethodUsed),
+        ),
+      ).sort(),
+    [people],
+  );
+
   // Helpers to add/remove a group of emails to/from the selection.
   const addGroup = (emails) =>
     setSelected((prev) => {
@@ -1562,6 +1575,17 @@ function EmailBroadcast({ records }) {
           <Tag label="Family room" emails={emailsWhere((p) => p.accommodationType === 'family')} />
           {branches.map((b) => (
             <Tag key={b} label={b} emails={emailsWhere((p) => p.branch === b)} />
+          ))}
+          {/* T-shirt fit groups — for tee-order coordination. */}
+          <Tag label="♂ Men's tee" emails={emailsWhere((p) => (p.tshirtFit || 'mens') !== 'womens')} />
+          <Tag label="♀ Women's tee" emails={emailsWhere((p) => p.tshirtFit === 'womens')} />
+          {/* Payee groups — e.g. mail everyone who paid to a given account (refunds). */}
+          {payees.map((m) => (
+            <Tag
+              key={m}
+              label={`💳 ${m}`}
+              emails={emailsWhere((p) => p.paymentStatus === 'paid' && p.paymentMethodUsed === m)}
+            />
           ))}
         </div>
       </div>
