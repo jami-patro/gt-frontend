@@ -175,6 +175,7 @@ export default function AdminPage() {
   const [query, setQuery] = useState('');
   const [payFilter, setPayFilter] = useState('all'); // all | paid | not_paid | pending | rejected
   const [checkinFilter, setCheckinFilter] = useState('all'); // all | in | out
+  const [teeFilter, setTeeFilter] = useState('all'); // all | mens | womens
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 10;
   const [editingId, setEditingId] = useState(null); // row id being edited inline
@@ -346,12 +347,15 @@ export default function AdminPage() {
 
   // Only approved members count toward attendance/food/headcount totals.
   const summary = useMemo(() => {
-    const s = { attending: 0, maybe: 0, no: 0, veg: 0, nonVeg: 0, guests: 0, pending: 0, paid: 0, collected: 0, pendingPay: 0, unpaid: 0, needRoom: 0 };
+    const s = { attending: 0, maybe: 0, no: 0, veg: 0, nonVeg: 0, guests: 0, pending: 0, paid: 0, collected: 0, pendingPay: 0, unpaid: 0, needRoom: 0, mensTee: 0, womensTee: 0 };
     for (const r of records) {
       if (r.paymentStatus === 'paid') s.paid += 1;
       if (r.paymentStatus === 'pending') s.pendingPay += 1;
       if (!r.paymentStatus || r.paymentStatus === 'not_paid' || r.paymentStatus === 'rejected') s.unpaid += 1;
       if (r.accommodationNeeded) s.needRoom += 1;
+      // T-shirt fit tally (across all members, for ordering).
+      if (r.tshirtFit === 'womens') s.womensTee += 1;
+      else s.mensTee += 1;
       s.collected += Number(r.contributionAmount) || 0;
       if (!r.approved) {
         s.pending += 1;
@@ -452,6 +456,8 @@ export default function AdminPage() {
       if (payFilter !== 'all' && (r.paymentStatus || 'not_paid') !== payFilter) return false;
       if (checkinFilter === 'in' && !r.eventPass?.checkedIn) return false;
       if (checkinFilter === 'out' && r.eventPass?.checkedIn) return false;
+      if (teeFilter === 'womens' && r.tshirtFit !== 'womens') return false;
+      if (teeFilter === 'mens' && r.tshirtFit === 'womens') return false;
       if (!q) return true;
       return [r.name, r.email, r.branch, r.rollNumber]
         .filter(Boolean)
@@ -463,7 +469,7 @@ export default function AdminPage() {
       if (a.approved !== b.approved) return a.approved ? 1 : -1; // pending first
       return new Date(b.createdAt || 0) - new Date(a.createdAt || 0); // newest first
     });
-  }, [records, query, payFilter, checkinFilter]);
+  }, [records, query, payFilter, checkinFilter, teeFilter]);
 
   // Pagination (client-side — all records are already loaded).
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
@@ -476,7 +482,7 @@ export default function AdminPage() {
   // Reset to the first page whenever the filters change.
   useEffect(() => {
     setPage(1);
-  }, [query, payFilter, checkinFilter]);
+  }, [query, payFilter, checkinFilter, teeFilter]);
 
   // Download the CSV through axios so the auth header is attached, then
   // trigger a browser download from the blob.
@@ -763,6 +769,8 @@ export default function AdminPage() {
           ['Under review', summary.pendingPay, 'text-amber-600'],
           ['Not paid', summary.unpaid, 'text-rose-600'],
           ['🏨 Need stay', summary.needRoom, 'text-indigo-600'],
+          ["👕 Men's tee", summary.mensTee, 'text-blue-600'],
+          ["👚 Women's tee", summary.womensTee, 'text-pink-600'],
           ['Collected', `₹${summary.collected.toLocaleString('en-IN')}`, 'text-slate-900'],
         ].map(([label, value, accent]) => (
           <div key={label} className="card text-center">
@@ -833,6 +841,35 @@ export default function AdminPage() {
                 }`}
               >
                 {checkinCounts[value] ?? 0}
+              </span>
+            </button>
+          ))}
+        </div>
+
+        {/* T-shirt fit filter */}
+        <div className="flex flex-wrap gap-2">
+          {[
+            ['all', '👕 All fits', records.length],
+            ['mens', "♂ Men's", summary.mensTee],
+            ['womens', "♀ Women's", summary.womensTee],
+          ].map(([value, label, count]) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setTeeFilter(value)}
+              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                teeFilter === value
+                  ? 'border-pink-600 bg-pink-600 text-white'
+                  : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50'
+              }`}
+            >
+              {label}
+              <span
+                className={`rounded-full px-1.5 py-0.5 text-[10px] tabular-nums ${
+                  teeFilter === value ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'
+                }`}
+              >
+                {count}
               </span>
             </button>
           ))}
