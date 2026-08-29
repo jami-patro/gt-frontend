@@ -504,6 +504,20 @@ export default function AdminPage() {
     }
   };
 
+  // Quick toggle of a member's T-shirt fit (Men's / Women's) for ordering.
+  const setTshirtFit = async (id, fit) => {
+    // Optimistic update, revert on error.
+    setRecords((prev) => prev.map((r) => (r.id === id ? { ...r, tshirtFit: fit } : r)));
+    try {
+      await api.patch(`/api/admin/records/${id}`, { tshirtFit: fit });
+    } catch (err) {
+      setRecords((prev) =>
+        prev.map((r) => (r.id === id ? { ...r, tshirtFit: fit === 'womens' ? 'mens' : 'womens' } : r)),
+      );
+      setError(apiError(err, 'Could not update T-shirt fit'));
+    }
+  };
+
   const saveEdit = async (id) => {
     setSavingEdit(true);
     try {
@@ -963,7 +977,23 @@ export default function AdminPage() {
                           <option key={s} value={s}>{s}</option>
                         ))}
                       </select>
-                    ) : (r.tshirtSize || '—')}
+                    ) : (
+                      <div className="flex flex-col items-start gap-1">
+                        <span>{r.tshirtSize || '—'}</span>
+                        <button
+                          type="button"
+                          onClick={() => setTshirtFit(r.id, r.tshirtFit === 'womens' ? 'mens' : 'womens')}
+                          title="Tap to switch T-shirt fit (for ordering)"
+                          className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 ${
+                            r.tshirtFit === 'womens'
+                              ? 'bg-pink-50 text-pink-700 ring-pink-200'
+                              : 'bg-blue-50 text-blue-700 ring-blue-200'
+                          }`}
+                        >
+                          {r.tshirtFit === 'womens' ? "♀ Women's" : "♂ Men's"}
+                        </button>
+                      </div>
+                    )}
                   </td>
 
                   {/* Payment */}
