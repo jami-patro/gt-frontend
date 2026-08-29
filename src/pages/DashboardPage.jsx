@@ -90,7 +90,7 @@ export default function DashboardPage() {
   const { user } = useAuth();
   const [form, setForm] = useState({
     attendance: 'yes',
-    foodPreference: 'veg',
+    foodPreference: '',
     guests: 0,
     tshirtSize: '',
     message: '',
@@ -125,6 +125,18 @@ export default function DashboardPage() {
 
   const save = async (e) => {
     e.preventDefault();
+    // Food preference and T-shirt size are required for anyone attending
+    // (yes/maybe) so we can plan catering and order the right tees. People who
+    // can't make it are exempt.
+    const attending = form.attendance !== 'no';
+    if (attending && !form.foodPreference) {
+      setError('Please choose your food preference.');
+      return;
+    }
+    if (attending && !form.tshirtSize) {
+      setError('Please select your T-shirt size.');
+      return;
+    }
     setSaving(true);
     setSaved(false);
     setError('');
@@ -184,7 +196,7 @@ export default function DashboardPage() {
 
         {/* Food preference */}
         <div>
-          <label className="label">Food preference</label>
+          <label className="label">Food preference <span className="text-rose-500">*</span></label>
           <div className="flex gap-2">
             <OptionButton
               tone="emerald"
@@ -205,7 +217,7 @@ export default function DashboardPage() {
 
         {/* T-shirt (guest count hidden for now) */}
         <div>
-          <label className="label">T-shirt size</label>
+          <label className="label">T-shirt size <span className="text-rose-500">*</span></label>
           <select
             className="input"
             value={form.tshirtSize}
