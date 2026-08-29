@@ -125,6 +125,8 @@ export default function DashboardPage() {
 
   const save = async (e) => {
     e.preventDefault();
+    setSaved(false);
+    setError('');
     // Food preference and T-shirt size are required for anyone attending
     // (yes/maybe) so we can plan catering and order the right tees. People who
     // can't make it are exempt.
@@ -138,8 +140,6 @@ export default function DashboardPage() {
       return;
     }
     setSaving(true);
-    setSaved(false);
-    setError('');
     try {
       await api.put('/api/rsvp', {
         ...form,
