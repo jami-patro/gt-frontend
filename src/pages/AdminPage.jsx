@@ -177,6 +177,7 @@ export default function AdminPage() {
   const [checkinFilter, setCheckinFilter] = useState('all'); // all | in | out
   const [teeFilter, setTeeFilter] = useState('all'); // all | mens | womens
   const [methodFilter, setMethodFilter] = useState('all'); // all | <paymentMethodUsed value>
+  const [emailsCopied, setEmailsCopied] = useState(0); // count of emails copied, for feedback
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 10;
   const [editingId, setEditingId] = useState(null); // row id being edited inline
@@ -502,6 +503,23 @@ export default function AdminPage() {
     }
   };
 
+  // Copy the emails of everyone in the current filtered view to the clipboard,
+  // so they can be pasted into a mail client's BCC field.
+  const copyEmails = async () => {
+    const emails = [...new Set(filtered.map((r) => r.email).filter(Boolean))];
+    if (emails.length === 0) {
+      setError('No emails in the current filter');
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(emails.join(', '));
+      setEmailsCopied(emails.length);
+      setTimeout(() => setEmailsCopied(0), 2500);
+    } catch {
+      setError('Could not copy to clipboard');
+    }
+  };
+
   // Download a guest's pass QR as a PNG (e.g. when their phone/email isn't
   // working, so they can photograph it at the desk).
   const downloadPass = async (id, name) => {
@@ -585,6 +603,13 @@ export default function AdminPage() {
             title="Reload the latest submissions"
           >
             ↻ Refresh
+          </button>
+          <button
+            onClick={copyEmails}
+            className="btn bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50"
+            title="Copy emails of everyone in the current filter (paste into BCC)"
+          >
+            {emailsCopied ? `✓ Copied ${emailsCopied}` : `✉ Copy emails (${filtered.length})`}
           </button>
           <button onClick={exportCsv} className="btn-primary">
             Export CSV
