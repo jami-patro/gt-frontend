@@ -549,22 +549,36 @@ export default function LandingPage() {
             <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">
               Our Representatives
             </div>
-            <div className="mt-1 grid grid-cols-1 gap-x-6 gap-y-0.5 sm:grid-cols-2">
-              {(event.contacts || []).map((c, i) => (
-                <div key={i} className="font-bold text-brand-700">
-                  📞 {c.name}
-                  {c.phone && (
-                    <>
-                      {' — '}
-                      <a href={`tel:${c.phone.replace(/[^\d+]/g, '')}`} className="text-blue-600 hover:underline">
-                        {c.phone}
-                      </a>
-                    </>
-                  )}
-                </div>
-              ))}
+            {/* Name on one line, number on the next — long names can wrap
+                without ever orphaning the phone number. */}
+            <div className="mt-2 grid grid-cols-1 gap-x-5 gap-y-2.5 sm:grid-cols-2 xl:grid-cols-3">
+              {(event.contacts || []).map((c, i) => {
+                const dialable = (c.phone || '').replace(/[^\d+]/g, '');
+                return (
+                  <div key={i} className="flex min-w-0 items-baseline gap-1.5">
+                    <span aria-hidden="true" className="shrink-0">
+                      📞
+                    </span>
+                    <div className="min-w-0">
+                      <div className="text-sm font-bold leading-snug text-brand-700">{c.name}</div>
+                      {dialable ? (
+                        <a
+                          href={`tel:${dialable}`}
+                          className="whitespace-nowrap text-sm font-semibold text-blue-600 hover:underline"
+                        >
+                          {c.phone}
+                        </a>
+                      ) : (
+                        <span className="text-xs font-semibold text-slate-400">
+                          {c.phone || 'TBA'}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-            <div className="mt-1.5 text-xs text-slate-400">For any queries</div>
+            <div className="mt-2.5 text-xs text-slate-400">For any queries</div>
           </div>
         </div>
       </section>
