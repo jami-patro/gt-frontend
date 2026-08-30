@@ -1819,6 +1819,10 @@ function EmailBroadcast({ records }) {
           <Tag label="♀ Women's tee" emails={emailsWhere((p) => p.tshirtFit === 'womens')} />
           {/* People who haven't picked a T-shirt size yet — nudge them. */}
           <Tag label="❓ No tee size" emails={emailsWhere((p) => !p.tshirtSize)} />
+          {/* Event-day pickup follow-ups — reach out to collect tee/souvenir. */}
+          <Tag label="👕 Tee not collected" emails={emailsWhere((p) => !p.eventPass?.tshirt)} />
+          <Tag label="🎁 Souvenir not collected" emails={emailsWhere((p) => !p.eventPass?.souvenir)} />
+          <Tag label="✅ Checked in" emails={emailsWhere((p) => p.eventPass?.checkedIn)} />
           {/* Payee groups — e.g. mail everyone who paid to a given account (refunds). */}
           {payees.map((m) => (
             <Tag
