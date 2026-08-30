@@ -548,11 +548,11 @@ export default function AdminPage() {
   // won't scan.
   const downloadCheckinSheet = async () => {
     try {
-      const res = await api.get('/api/admin/checkin-sheet.csv', { responseType: 'blob' });
+      const res = await api.get('/api/admin/checkin-sheet.xls', { responseType: 'blob' });
       const url = URL.createObjectURL(res.data);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'reunion-checkin-sheet.csv';
+      a.download = 'reunion-checkin-sheet.xls';
       a.click();
       URL.revokeObjectURL(url);
     } catch (err) {
