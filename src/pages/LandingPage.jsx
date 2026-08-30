@@ -15,7 +15,7 @@ const EVENT_DETAILS_FALLBACK = {
   locationUrl: '',
   // Hotel / accommodation note. Driven by EVENT_STAY on the backend; shows a
   // TBD placeholder until the hotel is finalised.
-  stay: 'Hotel accommodation — TBD',
+  stay: 'Hotel Accommodation — TBD',
   // Programme / running order for the day. The backend (/api/public/event)
   // is the source of truth and overrides this.
   schedule: [
@@ -548,7 +548,7 @@ export default function LandingPage() {
             </div>
 
             <div className="mt-3 border-t border-slate-100 pt-3">
-              <div className="font-bold text-brand-700">🏨 {event.stay || 'Hotel accommodation — TBD'}</div>
+              <div className="font-bold text-brand-700">🏨 {event.stay}</div>
               <div className="mt-0.5 text-xs text-slate-400">Details to be announced</div>
             </div>
           </div>
