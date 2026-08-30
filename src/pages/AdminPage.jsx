@@ -175,6 +175,8 @@ export default function AdminPage() {
   const [query, setQuery] = useState('');
   const [payFilter, setPayFilter] = useState('all'); // all | paid | not_paid | pending | rejected
   const [checkinFilter, setCheckinFilter] = useState('all'); // all | in | out
+  const [teeCollFilter, setTeeCollFilter] = useState('all'); // all | yes | no
+  const [souvenirFilter, setSouvenirFilter] = useState('all'); // all | yes | no
   const [teeFilter, setTeeFilter] = useState('all'); // all | mens | womens | nosize
   const [methodFilter, setMethodFilter] = useState('all'); // all | <paymentMethodUsed value>
   const [attendanceFilter, setAttendanceFilter] = useState('all'); // all | yes | maybe | no
@@ -466,12 +468,34 @@ export default function AdminPage() {
     return c;
   }, [records]);
 
+  // Tee-collected and souvenir-collected filter counts.
+  const teeCollCounts = useMemo(() => {
+    const c = { all: records.length, yes: 0, no: 0 };
+    for (const r of records) {
+      if (r.eventPass?.tshirt) c.yes += 1;
+      else c.no += 1;
+    }
+    return c;
+  }, [records]);
+  const souvenirCounts = useMemo(() => {
+    const c = { all: records.length, yes: 0, no: 0 };
+    for (const r of records) {
+      if (r.eventPass?.souvenir) c.yes += 1;
+      else c.no += 1;
+    }
+    return c;
+  }, [records]);
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     const rows = records.filter((r) => {
       if (payFilter !== 'all' && (r.paymentStatus || 'not_paid') !== payFilter) return false;
       if (checkinFilter === 'in' && !r.eventPass?.checkedIn) return false;
       if (checkinFilter === 'out' && r.eventPass?.checkedIn) return false;
+      if (teeCollFilter === 'yes' && !r.eventPass?.tshirt) return false;
+      if (teeCollFilter === 'no' && r.eventPass?.tshirt) return false;
+      if (souvenirFilter === 'yes' && !r.eventPass?.souvenir) return false;
+      if (souvenirFilter === 'no' && r.eventPass?.souvenir) return false;
       if (teeFilter === 'womens' && r.tshirtFit !== 'womens') return false;
       if (teeFilter === 'mens' && r.tshirtFit === 'womens') return false;
       if (teeFilter === 'nosize' && r.tshirtSize) return false;
@@ -488,7 +512,7 @@ export default function AdminPage() {
       if (a.approved !== b.approved) return a.approved ? 1 : -1; // pending first
       return new Date(b.createdAt || 0) - new Date(a.createdAt || 0); // newest first
     });
-  }, [records, query, payFilter, checkinFilter, teeFilter, methodFilter, attendanceFilter]);
+  }, [records, query, payFilter, checkinFilter, teeFilter, methodFilter, attendanceFilter, teeCollFilter, souvenirFilter]);
 
   // T-shirt order breakdown for the CURRENT filter — per size, split by fit,
   // so applying Coming / Paid / etc. tells you exactly how many to order.
@@ -525,7 +549,7 @@ export default function AdminPage() {
   // Reset to the first page whenever the filters change.
   useEffect(() => {
     setPage(1);
-  }, [query, payFilter, checkinFilter, teeFilter, methodFilter, attendanceFilter]);
+  }, [query, payFilter, checkinFilter, teeFilter, methodFilter, attendanceFilter, teeCollFilter, souvenirFilter]);
 
   // Download the CSV through axios so the auth header is attached, then
   // trigger a browser download from the blob.
@@ -932,6 +956,64 @@ export default function AdminPage() {
                 }`}
               >
                 {checkinCounts[value] ?? 0}
+              </span>
+            </button>
+          ))}
+        </div>
+
+        {/* T-shirt collected filter (event day) */}
+        <div className="flex flex-wrap gap-2">
+          {[
+            ['all', '👕 All'],
+            ['yes', '👕 Tee given'],
+            ['no', '👕 Tee pending'],
+          ].map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setTeeCollFilter(value)}
+              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                teeCollFilter === value
+                  ? 'border-sky-600 bg-sky-600 text-white'
+                  : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50'
+              }`}
+            >
+              {label}
+              <span
+                className={`rounded-full px-1.5 py-0.5 text-[10px] tabular-nums ${
+                  teeCollFilter === value ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'
+                }`}
+              >
+                {teeCollCounts[value] ?? 0}
+              </span>
+            </button>
+          ))}
+        </div>
+
+        {/* Souvenir collected filter (event day) */}
+        <div className="flex flex-wrap gap-2">
+          {[
+            ['all', '🎁 All'],
+            ['yes', '🎁 Souvenir given'],
+            ['no', '🎁 Souvenir pending'],
+          ].map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setSouvenirFilter(value)}
+              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                souvenirFilter === value
+                  ? 'border-violet-600 bg-violet-600 text-white'
+                  : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50'
+              }`}
+            >
+              {label}
+              <span
+                className={`rounded-full px-1.5 py-0.5 text-[10px] tabular-nums ${
+                  souvenirFilter === value ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'
+                }`}
+              >
+                {souvenirCounts[value] ?? 0}
               </span>
             </button>
           ))}
