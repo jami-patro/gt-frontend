@@ -559,7 +559,7 @@ export default function LandingPage() {
             </div>
             {/* Name on one line, number on the next — long names can wrap
                 without ever orphaning the phone number. */}
-            <div className="mt-2 grid grid-cols-1 gap-x-5 gap-y-2.5 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="mt-2 grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2 xl:grid-cols-3">
               {(event.contacts || []).map((c, i) => {
                 const dialable = (c.phone || '').replace(/[^\d+]/g, '');
                 return (
@@ -568,16 +568,16 @@ export default function LandingPage() {
                       📞
                     </span>
                     <div className="min-w-0">
-                      <div className="text-sm font-bold leading-snug text-brand-700">{c.name}</div>
+                      <div className="font-bold leading-snug text-brand-700">{c.name}</div>
                       {dialable ? (
                         <a
                           href={`tel:${dialable}`}
-                          className="whitespace-nowrap text-sm font-semibold text-blue-600 hover:underline"
+                          className="whitespace-nowrap font-semibold text-blue-600 hover:underline"
                         >
                           {c.phone}
                         </a>
                       ) : (
-                        <span className="text-xs font-semibold text-slate-400">
+                        <span className="text-sm font-semibold text-slate-400">
                           {c.phone || 'TBA'}
                         </span>
                       )}
