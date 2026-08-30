@@ -166,6 +166,17 @@ export default function StationPage() {
           <div className={`text-sm font-bold ${good ? 'text-emerald-700' : warn ? 'text-amber-700' : 'text-rose-700'}`}>
             {result.message}
           </div>
+          {/* At the T-shirt counter, show the size to hand over, big and clear. */}
+          {result.name && info?.station === 'tshirt' && (
+            <div className="mt-2 inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-white">
+              <span className="text-sm">👕 Size</span>
+              <span className="text-2xl font-extrabold">{result.tshirtSize || '—'}</span>
+              <span className="text-xs opacity-80">{result.tshirtFit === 'womens' ? "Women's" : "Men's"}</span>
+            </div>
+          )}
+          {result.name && info?.station === 'tshirt' && !result.tshirtSize && (
+            <div className="mt-1 text-xs font-semibold text-amber-600">No size on file — ask the guest</div>
+          )}
           {result.name && result.paid === false && (
             <div className="mt-1 text-xs font-semibold text-rose-600">Not marked paid in system</div>
           )}
@@ -178,6 +189,14 @@ export default function StationPage() {
           <div className="text-center">
             <div className="text-lg font-extrabold text-slate-900">{member.name}</div>
             {member.branch && <div className="text-xs text-slate-500">{member.branch}</div>}
+            <div className="mt-2 inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-1.5 text-white">
+              <span className="text-xs">👕</span>
+              <span className="text-lg font-extrabold">{member.tshirtSize || '—'}</span>
+              <span className="text-[11px] opacity-80">{member.tshirtFit === 'womens' ? "Women's" : "Men's"}</span>
+            </div>
+            {!member.tshirtSize && (
+              <div className="mt-1 text-xs font-semibold text-amber-600">No T-shirt size on file</div>
+            )}
             {member.paid === false && (
               <div className="mt-1 text-xs font-semibold text-rose-600">Not marked paid in system</div>
             )}
