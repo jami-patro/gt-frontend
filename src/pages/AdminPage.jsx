@@ -1105,7 +1105,16 @@ export default function AdminPage() {
               {paged.map((r) => {
                 const isEditing = editingId === r.id;
                 return (
-                <tr key={r.id} className={r.approved ? 'hover:bg-slate-50' : 'bg-amber-50/60 hover:bg-amber-50'}>
+                <tr
+                  key={r.id}
+                  className={
+                    !r.approved
+                      ? 'bg-amber-50/60 hover:bg-amber-50'
+                      : r.paymentStatus === 'paid'
+                        ? 'border-l-4 border-emerald-400 bg-emerald-50/50 hover:bg-emerald-50'
+                        : 'hover:bg-slate-50'
+                  }
+                >
                   {/* Name (+ message) */}
                   <td className="px-4 py-3 font-medium text-slate-800 align-top">
                     {isEditing ? (
