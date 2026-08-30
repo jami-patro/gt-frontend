@@ -543,6 +543,23 @@ export default function AdminPage() {
     }
   };
 
+  // Lean printable check-in roster (Pass No, name, branch, check-in + tee/
+  // souvenir status), sorted by pass number — the manual fallback if a QR
+  // won't scan.
+  const downloadCheckinSheet = async () => {
+    try {
+      const res = await api.get('/api/admin/checkin-sheet.csv', { responseType: 'blob' });
+      const url = URL.createObjectURL(res.data);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'reunion-checkin-sheet.csv';
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(apiError(err, 'Download failed'));
+    }
+  };
+
   // Copy the emails of everyone in the current filtered view to the clipboard,
   // so they can be pasted into a mail client's BCC field.
   const copyEmails = async () => {
@@ -650,6 +667,13 @@ export default function AdminPage() {
             title="Copy emails of everyone in the current filter (paste into BCC)"
           >
             {emailsCopied ? `✓ Copied ${emailsCopied}` : `✉ Copy emails (${filtered.length})`}
+          </button>
+          <button
+            onClick={downloadCheckinSheet}
+            className="btn bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50"
+            title="Printable check-in roster sorted by pass number (manual fallback)"
+          >
+            🧾 Check-in sheet
           </button>
           <button onClick={exportCsv} className="btn-primary">
             Export CSV

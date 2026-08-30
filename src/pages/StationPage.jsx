@@ -162,7 +162,14 @@ export default function StationPage() {
           }`}
         >
           <div className="text-3xl">{good ? '✅' : warn ? '⚠️' : '❌'}</div>
-          {result.name && <div className="mt-1 text-lg font-extrabold text-slate-900">{result.name}</div>}
+          {result.name && (
+            <div className="mt-1 text-lg font-extrabold text-slate-900">
+              {result.passNumber != null && (
+                <span className="mr-1 text-slate-400">#{result.passNumber}</span>
+              )}
+              {result.name}
+            </div>
+          )}
           <div className={`text-sm font-bold ${good ? 'text-emerald-700' : warn ? 'text-amber-700' : 'text-rose-700'}`}>
             {result.message}
           </div>
@@ -187,7 +194,12 @@ export default function StationPage() {
       {multi && member && (
         <div className="card space-y-3">
           <div className="text-center">
-            <div className="text-lg font-extrabold text-slate-900">{member.name}</div>
+            <div className="text-lg font-extrabold text-slate-900">
+              {member.passNumber != null && (
+                <span className="mr-1 text-slate-400">#{member.passNumber}</span>
+              )}
+              {member.name}
+            </div>
             {member.branch && <div className="text-xs text-slate-500">{member.branch}</div>}
             <div className="mt-2 inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-1.5 text-white">
               <span className="text-xs">👕</span>
