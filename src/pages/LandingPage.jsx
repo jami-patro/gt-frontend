@@ -13,6 +13,9 @@ const EVENT_DETAILS_FALLBACK = {
   time: '5:00 PM – 10:00 PM (TBD)',
   contacts: [{ name: 'Mrunal Jena', phone: '' }],
   locationUrl: '',
+  // Hotel / accommodation note. Driven by EVENT_STAY on the backend; shows a
+  // TBD placeholder until the hotel is finalised.
+  stay: 'Hotel accommodation — TBD',
   // Programme / running order for the day. The backend (/api/public/event)
   // is the source of truth and overrides this.
   schedule: [
@@ -511,7 +514,7 @@ export default function LandingPage() {
           {/* Venue + time share a card so contacts get the wider column */}
           <div className="card lg:col-span-2">
             <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-              Venue &amp; time
+              Venue, time &amp; stay
             </div>
             <div className="mt-1 font-bold text-brand-700">📍 {event.venue}</div>
             <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs font-semibold">
@@ -542,6 +545,11 @@ export default function LandingPage() {
             <div className="mt-3 border-t border-slate-100 pt-3">
               <div className="font-bold text-brand-700">🕔 {event.time}</div>
               <div className="mt-0.5 text-xs text-slate-400">{prettyDate}</div>
+            </div>
+
+            <div className="mt-3 border-t border-slate-100 pt-3">
+              <div className="font-bold text-brand-700">🏨 {event.stay || 'Hotel accommodation — TBD'}</div>
+              <div className="mt-0.5 text-xs text-slate-400">Details to be announced</div>
             </div>
           </div>
 
