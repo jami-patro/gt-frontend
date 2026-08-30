@@ -507,41 +507,49 @@ export default function LandingPage() {
       {/* Event details */}
       <section>
         <h2 className="mb-4 text-xl font-bold tracking-tight text-slate-900">Event details</h2>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <div className="card">
-            <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">Venue</div>
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-5">
+          {/* Venue + time share a card so contacts get the wider column */}
+          <div className="card lg:col-span-2">
+            <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+              Venue &amp; time
+            </div>
             <div className="mt-1 font-bold text-brand-700">📍 {event.venue}</div>
-            {event.locationUrl ? (
-              <a
-                href={event.locationUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="mt-0.5 inline-block text-xs font-semibold text-blue-600 hover:underline"
-              >
-                View on map →
-              </a>
-            ) : (
-              <div className="mt-0.5 text-xs text-slate-400">Exact venue to be announced</div>
-            )}
-            {event.videoUrl && (
-              <a
-                href={event.videoUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="mt-0.5 block text-xs font-semibold text-rose-600 hover:underline"
-              >
-                ▶ Watch venue tour
-              </a>
-            )}
+            <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs font-semibold">
+              {event.locationUrl ? (
+                <a
+                  href={event.locationUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-blue-600 hover:underline"
+                >
+                  View on map →
+                </a>
+              ) : (
+                <span className="font-normal text-slate-400">Exact venue to be announced</span>
+              )}
+              {event.videoUrl && (
+                <a
+                  href={event.videoUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-rose-600 hover:underline"
+                >
+                  ▶ Watch venue tour
+                </a>
+              )}
+            </div>
+
+            <div className="mt-3 border-t border-slate-100 pt-3">
+              <div className="font-bold text-brand-700">🕔 {event.time}</div>
+              <div className="mt-0.5 text-xs text-slate-400">{prettyDate}</div>
+            </div>
           </div>
-          <div className="card">
-            <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">Time</div>
-            <div className="mt-1 font-bold text-brand-700">🕔 {event.time}</div>
-            <div className="mt-0.5 text-xs text-slate-400">{prettyDate}</div>
-          </div>
-          <div className="card">
-            <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">Contact</div>
-            <div className="mt-1 space-y-0.5">
+
+          <div className="card lg:col-span-3">
+            <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+              Our Representatives
+            </div>
+            <div className="mt-1 grid grid-cols-1 gap-x-6 gap-y-0.5 sm:grid-cols-2">
               {(event.contacts || []).map((c, i) => (
                 <div key={i} className="font-bold text-brand-700">
                   📞 {c.name}
@@ -556,7 +564,7 @@ export default function LandingPage() {
                 </div>
               ))}
             </div>
-            <div className="mt-0.5 text-xs text-slate-400">For any queries</div>
+            <div className="mt-1.5 text-xs text-slate-400">For any queries</div>
           </div>
         </div>
       </section>
