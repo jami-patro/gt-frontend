@@ -584,17 +584,21 @@ export default function AdminPage() {
     }
   };
 
-  // Copy the emails of everyone in the current filtered view to the clipboard,
-  // so they can be pasted into a mail client's BCC field.
+  // Copy contact info (name, branch, email, phone) for everyone in the current
+  // filtered view to the clipboard — one person per line, tab-separated so it
+  // pastes cleanly into a spreadsheet or messaging tool.
   const copyEmails = async () => {
-    const emails = [...new Set(filtered.map((r) => r.email).filter(Boolean))];
-    if (emails.length === 0) {
-      setError('No emails in the current filter');
+    const rows = filtered.filter((r) => r.email || r.phone);
+    if (rows.length === 0) {
+      setError('No contacts in the current filter');
       return;
     }
+    const lines = rows.map((r) =>
+      [r.name, r.branch, r.email, r.phone].filter(Boolean).join('\t'),
+    );
     try {
-      await navigator.clipboard.writeText(emails.join(', '));
-      setEmailsCopied(emails.length);
+      await navigator.clipboard.writeText(lines.join('\n'));
+      setEmailsCopied(rows.length);
       setTimeout(() => setEmailsCopied(0), 2500);
     } catch {
       setError('Could not copy to clipboard');
@@ -688,9 +692,9 @@ export default function AdminPage() {
           <button
             onClick={copyEmails}
             className="btn bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50"
-            title="Copy emails of everyone in the current filter (paste into BCC)"
+            title="Copy name, branch, email and phone for everyone in the current filter (tab-separated, one per line)"
           >
-            {emailsCopied ? `✓ Copied ${emailsCopied}` : `✉ Copy emails (${filtered.length})`}
+            {emailsCopied ? `✓ Copied ${emailsCopied}` : `✉ Copy contacts (${filtered.length})`}
           </button>
           <button
             onClick={downloadCheckinSheet}
