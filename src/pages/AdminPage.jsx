@@ -188,6 +188,7 @@ export default function AdminPage() {
   const [savingEdit, setSavingEdit] = useState(false);
   const [proof, setProof] = useState(null); // { name, image, note, ... } for modal
   const [proofLoading, setProofLoading] = useState(false);
+  const [payOverride, setPayOverride] = useState(null); // { id, name, amount } — manual payment modal
   const [settings, setSettings] = useState(null); // { paymentOpen, paymentConfigured }
   const [togglingPay, setTogglingPay] = useState(false);
 
@@ -399,6 +400,13 @@ export default function AdminPage() {
                 paymentStatus: res.data.paymentStatus,
                 contributionAmount: res.data.contributionAmount,
                 paymentRejectReason: res.data.paymentRejectReason ?? null,
+                paymentMethodUsed: res.data.paymentMethodUsed ?? r.paymentMethodUsed ?? null,
+                paymentNote: res.data.paymentNote ?? r.paymentNote ?? null,
+                paymentTransactionId: res.data.paymentTransactionId ?? r.paymentTransactionId ?? null,
+                // When an override is recorded, treat it like a proof entry so the
+                // "🧾 Proof" button lights up (transaction id or note counts).
+                hasProofOrTxn:
+                  Boolean(res.data.paymentTransactionId) || Boolean(res.data.paymentNote) || r.hasProof,
               }
             : r,
         ),
@@ -1402,6 +1410,19 @@ export default function AdminPage() {
                                 ✕ Reject
                               </button>
                             )}
+                            <button
+                              onClick={() =>
+                                setPayOverride({
+                                  id: r.id,
+                                  name: r.name,
+                                  amount: Number(r.contributionAmount) || 0,
+                                })
+                              }
+                              className="rounded-lg px-1.5 py-0.5 text-[11px] font-semibold text-violet-600 hover:bg-violet-50"
+                              title="Record payment manually (no proof upload needed)"
+                            >
+                              ✎ Record
+                            </button>
                           </>
                         )}
                       </div>
@@ -1508,6 +1529,25 @@ export default function AdminPage() {
 
       {proofLoading && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 text-white">Loading proof…</div>
+      )}
+
+      {/* Manual payment override modal */}
+      {payOverride && (
+        <RecordPaymentModal
+          record={payOverride}
+          methods={settings?.methods ?? []}
+          onClose={() => setPayOverride(null)}
+          onSave={async ({ amount, methodUsed, txnId, note }) => {
+            await setPayment(payOverride.id, {
+              paymentStatus: 'paid',
+              contributionAmount: amount,
+              paymentMethodUsed: methodUsed || null,
+              paymentTransactionId: txnId || null,
+              paymentNote: note || null,
+            });
+            setPayOverride(null);
+          }}
+        />
       )}
       {proof && (
         <div
@@ -2255,6 +2295,162 @@ function WalkInRegistration({ onDone }) {
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// RecordPaymentModal — admin manually records a payment without proof upload.
+// Shows a small form: amount (required), which account/method it went to
+// (dropdown populated from configured payment methods + free-type fallback),
+// optional UTR/transaction reference, and an optional free-text note.
+// ---------------------------------------------------------------------------
+function RecordPaymentModal({ record, methods, onClose, onSave }) {
+  const [amount, setAmount] = useState(record.amount > 0 ? String(record.amount) : '');
+  const [methodUsed, setMethodUsed] = useState('');
+  const [customMethod, setCustomMethod] = useState('');
+  const [txnId, setTxnId] = useState('');
+  const [note, setNote] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+
+  // Build the method dropdown from configured QR/payment accounts.
+  // Each entry is the human label (e.g. "PhonePe – 9876543210").
+  const methodOptions = methods
+    .filter((m) => m.enabled !== false)
+    .map((m) => m.label || [m.payeeName, m.upiId].filter(Boolean).join(' – '))
+    .filter(Boolean);
+
+  const resolvedMethod = methodUsed === '__other__' ? customMethod.trim() : methodUsed;
+
+  const submit = async () => {
+    const amt = Number(amount);
+    if (!amt || amt <= 0) { setErr('Enter a valid amount'); return; }
+    setErr('');
+    setBusy(true);
+    try {
+      await onSave({ amount: Math.round(amt), methodUsed: resolvedMethod, txnId, note });
+    } catch (e) {
+      setErr(e?.response?.data?.error || 'Could not save — please try again');
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="mb-4 flex items-start justify-between gap-2">
+          <div>
+            <h3 className="font-bold text-slate-900">Record payment</h3>
+            <p className="mt-0.5 text-sm text-slate-500">{record.name}</p>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-700">✕</button>
+        </div>
+
+        <div className="space-y-3">
+          {/* Amount */}
+          <label className="block">
+            <span className="mb-1 block text-xs font-semibold text-slate-700">
+              Amount paid (₹) <span className="text-rose-500">*</span>
+            </span>
+            <div className="flex items-center rounded-lg ring-1 ring-slate-200 focus-within:ring-2 focus-within:ring-violet-400">
+              <span className="px-2 text-sm text-slate-400">₹</span>
+              <input
+                type="number"
+                min={1}
+                placeholder="e.g. 500"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                className="w-full rounded-r-lg py-2 pr-3 text-sm focus:outline-none"
+                autoFocus
+              />
+            </div>
+          </label>
+
+          {/* Which account it was paid to */}
+          <label className="block">
+            <span className="mb-1 block text-xs font-semibold text-slate-700">Paid to account</span>
+            <select
+              value={methodUsed}
+              onChange={(e) => setMethodUsed(e.target.value)}
+              className="w-full rounded-lg py-2 pl-3 pr-8 text-sm ring-1 ring-slate-200 focus:outline-none focus:ring-2 focus:ring-violet-400"
+            >
+              <option value="">— select account —</option>
+              {methodOptions.map((opt) => (
+                <option key={opt} value={opt}>{opt}</option>
+              ))}
+              <option value="__other__">Other / type manually</option>
+            </select>
+          </label>
+
+          {/* Free-type account when "Other" is chosen */}
+          {methodUsed === '__other__' && (
+            <input
+              type="text"
+              placeholder="Account name or UPI ID"
+              value={customMethod}
+              onChange={(e) => setCustomMethod(e.target.value)}
+              maxLength={100}
+              className="w-full rounded-lg px-3 py-2 text-sm ring-1 ring-slate-200 focus:outline-none focus:ring-2 focus:ring-violet-400"
+            />
+          )}
+
+          {/* Transaction / UTR reference */}
+          <label className="block">
+            <span className="mb-1 block text-xs font-semibold text-slate-700">
+              Transaction / UTR ID <span className="text-slate-400 font-normal">(optional)</span>
+            </span>
+            <input
+              type="text"
+              placeholder="e.g. 123456789012"
+              value={txnId}
+              onChange={(e) => setTxnId(e.target.value)}
+              maxLength={100}
+              className="w-full rounded-lg px-3 py-2 text-sm ring-1 ring-slate-200 focus:outline-none focus:ring-2 focus:ring-violet-400"
+            />
+          </label>
+
+          {/* Admin note */}
+          <label className="block">
+            <span className="mb-1 block text-xs font-semibold text-slate-700">
+              Note <span className="text-slate-400 font-normal">(optional — visible in proof view)</span>
+            </span>
+            <textarea
+              rows={2}
+              placeholder="e.g. Paid in cash at venue / transferred from Rahul's account"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              maxLength={300}
+              className="w-full rounded-lg px-3 py-2 text-sm ring-1 ring-slate-200 focus:outline-none focus:ring-2 focus:ring-violet-400"
+            />
+          </label>
+
+          {err && <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-600">{err}</p>}
+
+          <div className="flex gap-2 pt-1">
+            <button
+              onClick={onClose}
+              className="flex-1 rounded-lg py-2 text-sm font-semibold text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={submit}
+              disabled={busy}
+              className="flex-1 rounded-lg bg-violet-600 py-2 text-sm font-semibold text-white hover:bg-violet-700 disabled:opacity-50"
+            >
+              {busy ? 'Saving…' : '✓ Mark as paid'}
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
