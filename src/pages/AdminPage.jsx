@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import { api, apiError } from '../lib/api.js';
+import { compressImage } from '../lib/image.js';
 
 const BRANCHES = ['Computer Science', 'Electrical', 'Mechanical', 'Civil', 'Electronics'];
 
@@ -406,7 +407,8 @@ export default function AdminPage() {
                 // When an override is recorded, treat it like a proof entry so the
                 // "🧾 Proof" button lights up (transaction id or note counts).
                 hasProofOrTxn:
-                  Boolean(res.data.paymentTransactionId) || Boolean(res.data.paymentNote) || r.hasProof,
+                  Boolean(res.data.hasProof) || Boolean(res.data.paymentTransactionId) || Boolean(res.data.paymentNote) || r.hasProof,
+                hasProof: res.data.hasProof ?? r.hasProof,
               }
             : r,
         ),
@@ -1537,13 +1539,14 @@ export default function AdminPage() {
           record={payOverride}
           methods={settings?.methods ?? []}
           onClose={() => setPayOverride(null)}
-          onSave={async ({ amount, methodUsed, txnId, note }) => {
+          onSave={async ({ amount, methodUsed, txnId, note, proofDataUrl }) => {
             await setPayment(payOverride.id, {
               paymentStatus: 'paid',
               contributionAmount: amount,
               paymentMethodUsed: methodUsed || null,
               paymentTransactionId: txnId || null,
               paymentNote: note || null,
+              paymentProof: proofDataUrl || null,
             });
             setPayOverride(null);
           }}
@@ -2303,7 +2306,8 @@ function WalkInRegistration({ onDone }) {
 // RecordPaymentModal — admin manually records a payment without proof upload.
 // Shows a small form: amount (required), which account/method it went to
 // (dropdown populated from configured payment methods + free-type fallback),
-// optional UTR/transaction reference, and an optional free-text note.
+// optional UTR/transaction reference, optional free-text note, and an optional
+// screenshot the admin can upload on the member's behalf.
 // ---------------------------------------------------------------------------
 function RecordPaymentModal({ record, methods, onClose, onSave }) {
   const [amount, setAmount] = useState(record.amount > 0 ? String(record.amount) : '');
@@ -2311,6 +2315,9 @@ function RecordPaymentModal({ record, methods, onClose, onSave }) {
   const [customMethod, setCustomMethod] = useState('');
   const [txnId, setTxnId] = useState('');
   const [note, setNote] = useState('');
+  const [proofDataUrl, setProofDataUrl] = useState(null); // compressed base64
+  const [proofName, setProofName] = useState('');
+  const [compressing, setCompressing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
 
@@ -2323,13 +2330,35 @@ function RecordPaymentModal({ record, methods, onClose, onSave }) {
 
   const resolvedMethod = methodUsed === '__other__' ? customMethod.trim() : methodUsed;
 
+  const handleScreenshot = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setErr('');
+    setCompressing(true);
+    try {
+      const dataUrl = await compressImage(file, { maxDim: 1000, quality: 0.7 });
+      setProofDataUrl(dataUrl);
+      setProofName(file.name);
+    } catch {
+      setErr("Couldn't read that image — try a JPEG or PNG.");
+    } finally {
+      setCompressing(false);
+    }
+  };
+
   const submit = async () => {
     const amt = Number(amount);
     if (!amt || amt <= 0) { setErr('Enter a valid amount'); return; }
     setErr('');
     setBusy(true);
     try {
-      await onSave({ amount: Math.round(amt), methodUsed: resolvedMethod, txnId, note });
+      await onSave({
+        amount: Math.round(amt),
+        methodUsed: resolvedMethod,
+        txnId,
+        note,
+        proofDataUrl,
+      });
     } catch (e) {
       setErr(e?.response?.data?.error || 'Could not save — please try again');
       setBusy(false);
@@ -2420,7 +2449,7 @@ function RecordPaymentModal({ record, methods, onClose, onSave }) {
           {/* Admin note */}
           <label className="block">
             <span className="mb-1 block text-xs font-semibold text-slate-700">
-              Note <span className="text-slate-400 font-normal">(optional — visible in proof view)</span>
+              Note <span className="text-slate-400 font-normal">(optional)</span>
             </span>
             <textarea
               rows={2}
@@ -2431,6 +2460,43 @@ function RecordPaymentModal({ record, methods, onClose, onSave }) {
               className="w-full rounded-lg px-3 py-2 text-sm ring-1 ring-slate-200 focus:outline-none focus:ring-2 focus:ring-violet-400"
             />
           </label>
+
+          {/* Screenshot upload */}
+          <div>
+            <span className="mb-1 block text-xs font-semibold text-slate-700">
+              Payment screenshot <span className="text-slate-400 font-normal">(optional)</span>
+            </span>
+            {proofDataUrl ? (
+              <div className="space-y-1.5">
+                <img
+                  src={proofDataUrl}
+                  alt="Payment screenshot preview"
+                  className="max-h-32 w-full rounded-lg object-contain ring-1 ring-slate-200"
+                />
+                <div className="flex items-center justify-between text-xs text-slate-500">
+                  <span className="truncate">{proofName}</span>
+                  <button
+                    type="button"
+                    onClick={() => { setProofDataUrl(null); setProofName(''); }}
+                    className="ml-2 shrink-0 text-rose-500 hover:text-rose-700"
+                  >
+                    Remove
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-slate-300 bg-slate-50 px-3 py-4 text-sm text-slate-500 transition hover:border-violet-400 hover:bg-violet-50 hover:text-violet-600">
+                {compressing ? 'Processing…' : '📎 Tap to attach screenshot'}
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="sr-only"
+                  onChange={handleScreenshot}
+                  disabled={compressing}
+                />
+              </label>
+            )}
+          </div>
 
           {err && <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-600">{err}</p>}
 
@@ -2443,7 +2509,7 @@ function RecordPaymentModal({ record, methods, onClose, onSave }) {
             </button>
             <button
               onClick={submit}
-              disabled={busy}
+              disabled={busy || compressing}
               className="flex-1 rounded-lg bg-violet-600 py-2 text-sm font-semibold text-white hover:bg-violet-700 disabled:opacity-50"
             >
               {busy ? 'Saving…' : '✓ Mark as paid'}
