@@ -26,7 +26,7 @@ const EVENT_DETAILS_FALLBACK = {
     { time: '4:15 – 5:00 PM', title: '❤️ Old Memories Session' },
     { time: '5:00 – 5:30 PM', title: '☕ Tea & Snacks' },
     { time: '5:30 – 6:15 PM', title: '🎭 Cultural & Fun Performances' },
-    { time: '7:00 – 7:45 PM', title: '🏅 Awards, Souvenirs & Reunion Moments' },
+    { time: '7:00 – 7:45 PM', title: '🏅 Awards, Momentos & Reunion Moments' },
     { time: '7:45 – 8:30 PM', title: '🎤 Open Mic & Friendship Time' },
     { time: '8:30 PM onwards', title: '💃 Music, Dance & Grand Closing' },
   ],
@@ -339,7 +339,7 @@ function ContributionCTA({ amount, note, user }) {
             <span className="ml-2 align-middle text-sm font-medium text-slate-400">per person</span>
           </div>
           <p className="mt-2 max-w-md text-sm text-slate-400">
-            {note || 'Your contribution covers venue, food, T-shirt and souvenirs. Log in to pay and upload your payment proof.'}
+            {note || 'Your contribution covers venue, food, T-shirt and momentos. Log in to pay and upload your payment proof.'}
           </p>
         </div>
         <Link to={user ? '/dashboard' : '/login'} className="btn-accent shrink-0">
