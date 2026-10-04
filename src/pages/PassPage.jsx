@@ -157,11 +157,9 @@ export default function PassPage() {
           busy={busy === 'souvenir'}
           onClick={() => update({ souvenir: !s.souvenir }, 'souvenir')}
         />
-
-        {/* Drinks counter removed — feature dropped */}
-          </div>
-        </div>
       </div>
+    </div>
+  </div>
 
       <Link
         to="/admin"
