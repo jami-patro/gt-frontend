@@ -11,6 +11,10 @@ export default function CheckinPage() {
   const [query, setQuery] = useState('');
   const [busy, setBusy] = useState({}); // { [userId]: 'checkedIn'|'tshirt'|'souvenir' }
   const [toast, setToast] = useState(null); // { name, action }
+  const [statusFilter, setStatusFilter] = useState('all'); // 'all' | 'checked-in' | 'not-checked-in' | 'paid' | 'not-paid' | 'pending-tshirt' | 'pending-souvenir' | 'walk-in'
+  const [editingLocation, setEditingLocation] = useState(null); // { userId, value }
+  const [savingLocation, setSavingLocation] = useState(null); // userId
+  const [uploadingProof, setUploadingProof] = useState(null); // userId
 
   const load = () => {
     setLoading(true);
@@ -23,17 +27,44 @@ export default function CheckinPage() {
 
   useEffect(load, []);
 
-  // Filter by branch + search query
+  // Filter by branch + search query + status filter
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return records.filter((r) => {
+      // Branch filter
       if (branchFilter !== 'all' && r.branch !== branchFilter) return false;
-      if (!q) return true;
-      return [r.name, r.email, r.rollNumber].filter(Boolean).some((v) =>
-        String(v).toLowerCase().includes(q),
-      );
+      
+      // Search filter
+      if (q && ![r.name, r.email, r.rollNumber].filter(Boolean).some((v) =>
+        String(v).toLowerCase().includes(q)
+      )) return false;
+      
+      // Status filter
+      if (statusFilter === 'checked-in') {
+        return r.eventPass?.checkedIn === true;
+      }
+      if (statusFilter === 'not-checked-in') {
+        return !r.eventPass?.checkedIn;
+      }
+      if (statusFilter === 'paid') {
+        return r.paymentStatus === 'paid';
+      }
+      if (statusFilter === 'not-paid') {
+        return r.paymentStatus !== 'paid';
+      }
+      if (statusFilter === 'pending-tshirt') {
+        return r.eventPass?.checkedIn && !r.eventPass?.tshirt;
+      }
+      if (statusFilter === 'pending-souvenir') {
+        return r.eventPass?.checkedIn && !r.eventPass?.souvenir;
+      }
+      if (statusFilter === 'walk-in') {
+        return r.isWalkIn === true;
+      }
+      
+      return true;
     });
-  }, [records, branchFilter, query]);
+  }, [records, branchFilter, query, statusFilter]);
 
   // Branch chip counts
   const branchCounts = useMemo(() => {
@@ -52,7 +83,21 @@ export default function CheckinPage() {
     const checkedIn = records.filter((r) => r.eventPass?.checkedIn).length;
     const tshirt = records.filter((r) => r.eventPass?.tshirt).length;
     const souvenir = records.filter((r) => r.eventPass?.souvenir).length;
-    return { checkedIn, tshirt, souvenir, total: records.length };
+    const paid = records.filter((r) => r.paymentStatus === 'paid').length;
+    
+    // Branch-wise breakdown
+    const byBranch = {};
+    ['all', ...BRANCHES].forEach((branch) => {
+      const branchRecords = branch === 'all' ? records : records.filter((r) => r.branch === branch);
+      byBranch[branch] = {
+        total: branchRecords.length,
+        checkedIn: branchRecords.filter((r) => r.eventPass?.checkedIn).length,
+        tshirt: branchRecords.filter((r) => r.eventPass?.tshirt).length,
+        souvenir: branchRecords.filter((r) => r.eventPass?.souvenir).length,
+      };
+    });
+    
+    return { checkedIn, tshirt, souvenir, paid, total: records.length, byBranch };
   }, [records]);
 
   const toggleAction = async (id, action, currentValue) => {
@@ -66,7 +111,7 @@ export default function CheckinPage() {
       const record = records.find((r) => r.id === id);
       setRecords((prev) =>
         prev.map((r) =>
-          r.id === id ? { ...r, eventPass: { ...r.eventPass, ...res.data.eventPass } } : r,
+          r.id === id ? { ...r, eventPass: { ...r.eventPass, ...res.data.eventPass }, location: res.data.location ?? r.location } : r,
         ),
       );
       
@@ -88,6 +133,78 @@ export default function CheckinPage() {
         delete next[id];
         return next;
       });
+    }
+  };
+
+  const saveLocation = async (id, location) => {
+    setSavingLocation(id);
+    setError('');
+    try {
+      const res = await api.patch(`/api/admin/users/${id}/eventpass`, { location });
+      setRecords((prev) =>
+        prev.map((r) => (r.id === id ? { ...r, location: res.data.location } : r)),
+      );
+      setEditingLocation(null);
+    } catch (err) {
+      setError(apiError(err, 'Could not update location'));
+    } finally {
+      setSavingLocation(null);
+    }
+  };
+
+  const uploadPaymentProof = async (id, file) => {
+    setUploadingProof(id);
+    setError('');
+    try {
+      // Import compressImage from AdminPage
+      const compressImage = async (file) => {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            const img = new Image();
+            img.onload = () => {
+              const canvas = document.createElement('canvas');
+              const MAX_WIDTH = 800;
+              const scale = MAX_WIDTH / img.width;
+              canvas.width = MAX_WIDTH;
+              canvas.height = img.height * scale;
+              const ctx = canvas.getContext('2d');
+              ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+              resolve(canvas.toDataURL('image/jpeg', 0.7));
+            };
+            img.onerror = reject;
+            img.src = e.target.result;
+          };
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+      };
+
+      const compressed = await compressImage(file);
+      const res = await api.patch(`/api/admin/users/${id}/payment`, {
+        paymentProof: compressed,
+        paymentStatus: 'paid',
+      });
+      
+      setRecords((prev) =>
+        prev.map((r) =>
+          r.id === id
+            ? {
+                ...r,
+                paymentStatus: res.data.paymentStatus,
+                hasProof: res.data.hasProof,
+                hasProofOrTxn: res.data.hasProofOrTxn,
+              }
+            : r,
+        ),
+      );
+      
+      setToast({ name: records.find((r) => r.id === id)?.name || 'Member', action: 'payment proof uploaded' });
+      setTimeout(() => setToast(null), 3000);
+    } catch (err) {
+      setError(apiError(err, 'Could not upload payment proof'));
+    } finally {
+      setUploadingProof(null);
     }
   };
 
@@ -136,19 +253,58 @@ export default function CheckinPage() {
       />
 
       {/* Statistics */}
-      <div className="flex flex-wrap gap-3 rounded-lg bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">
-        <div className="flex items-center gap-1.5">
-          <span className="text-base">✅</span>
-          Check-in: <span className="text-emerald-600">{stats.checkedIn}</span>/{stats.total}
+      <div className="space-y-3">
+        {/* Overall stats */}
+        <div className="flex flex-wrap gap-3 rounded-lg bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">
+          <div className="flex items-center gap-1.5">
+            <span className="text-base">✅</span>
+            Check-in: <span className="text-emerald-600">{stats.checkedIn}</span>/{stats.total}
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="text-base">👕</span>
+            T-shirt: <span className="text-blue-600">{stats.tshirt}</span>/{stats.total}
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="text-base">🎁</span>
+            Souvenir: <span className="text-purple-600">{stats.souvenir}</span>/{stats.total}
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="text-base">💰</span>
+            Paid: <span className="text-green-600">{stats.paid}</span>/{stats.total}
+          </div>
         </div>
-        <div className="flex items-center gap-1.5">
-          <span className="text-base">👕</span>
-          T-shirt: <span className="text-blue-600">{stats.tshirt}</span>/{stats.total}
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span className="text-base">🎁</span>
-          Souvenir: <span className="text-purple-600">{stats.souvenir}</span>/{stats.total}
-        </div>
+
+        {/* Branch-wise breakdown - shown only when a specific branch is selected */}
+        {branchFilter !== 'all' && stats.byBranch[branchFilter] && (
+          <div className="rounded-lg border border-slate-200 bg-white px-4 py-3">
+            <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+              {branchFilter} Branch
+            </div>
+            <div className="grid grid-cols-3 gap-3 text-sm">
+              <div>
+                <div className="text-xs text-slate-500">Check-in</div>
+                <div className="text-lg font-bold text-emerald-600">
+                  {stats.byBranch[branchFilter].checkedIn}
+                  <span className="text-sm text-slate-400">/{stats.byBranch[branchFilter].total}</span>
+                </div>
+              </div>
+              <div>
+                <div className="text-xs text-slate-500">T-shirt</div>
+                <div className="text-lg font-bold text-blue-600">
+                  {stats.byBranch[branchFilter].tshirt}
+                  <span className="text-sm text-slate-400">/{stats.byBranch[branchFilter].total}</span>
+                </div>
+              </div>
+              <div>
+                <div className="text-xs text-slate-500">Souvenir</div>
+                <div className="text-lg font-bold text-purple-600">
+                  {stats.byBranch[branchFilter].souvenir}
+                  <span className="text-sm text-slate-400">/{stats.byBranch[branchFilter].total}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Branch filter chips */}
@@ -180,6 +336,90 @@ export default function CheckinPage() {
         })}
       </div>
 
+      {/* Status filters */}
+      <div className="flex flex-wrap gap-2">
+        <button
+          onClick={() => setStatusFilter('all')}
+          className={`btn text-sm ${
+            statusFilter === 'all'
+              ? 'bg-slate-900 text-white'
+              : 'bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50'
+          }`}
+        >
+          Show All
+        </button>
+        <button
+          onClick={() => setStatusFilter('checked-in')}
+          className={`btn text-sm ${
+            statusFilter === 'checked-in'
+              ? 'bg-emerald-600 text-white'
+              : 'bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50'
+          }`}
+        >
+          ✅ Checked In
+        </button>
+        <button
+          onClick={() => setStatusFilter('not-checked-in')}
+          className={`btn text-sm ${
+            statusFilter === 'not-checked-in'
+              ? 'bg-rose-600 text-white'
+              : 'bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50'
+          }`}
+        >
+          ⏳ Not Checked In
+        </button>
+        <button
+          onClick={() => setStatusFilter('paid')}
+          className={`btn text-sm ${
+            statusFilter === 'paid'
+              ? 'bg-green-600 text-white'
+              : 'bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50'
+          }`}
+        >
+          💰 Paid ({stats.paid})
+        </button>
+        <button
+          onClick={() => setStatusFilter('not-paid')}
+          className={`btn text-sm ${
+            statusFilter === 'not-paid'
+              ? 'bg-amber-600 text-white'
+              : 'bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50'
+          }`}
+        >
+          ⏳ Not Paid ({stats.total - stats.paid})
+        </button>
+        <button
+          onClick={() => setStatusFilter('walk-in')}
+          className={`btn text-sm ${
+            statusFilter === 'walk-in'
+              ? 'bg-orange-600 text-white'
+              : 'bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50'
+          }`}
+        >
+          🚶 Walk-ins
+        </button>
+        <button
+          onClick={() => setStatusFilter('pending-tshirt')}
+          className={`btn text-sm ${
+            statusFilter === 'pending-tshirt'
+              ? 'bg-blue-600 text-white'
+              : 'bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50'
+          }`}
+        >
+          👕 Pending T-shirt
+        </button>
+        <button
+          onClick={() => setStatusFilter('pending-souvenir')}
+          className={`btn text-sm ${
+            statusFilter === 'pending-souvenir'
+              ? 'bg-purple-600 text-white'
+              : 'bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50'
+          }`}
+        >
+          🎁 Pending Souvenir
+        </button>
+      </div>
+
       {/* Walk-in registration */}
       <WalkInRegistration onDone={load} />
 
@@ -203,14 +443,101 @@ export default function CheckinPage() {
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
                     <span className="font-semibold text-slate-900 md:text-lg">{r.name}</span>
+                    {r.isWalkIn && (
+                      <span className="text-base" title="Walk-in registration">
+                        🚶
+                      </span>
+                    )}
                     {r.paymentStatus === 'paid' && (
                       <span className="text-base" title="Payment verified">
                         💰
                       </span>
                     )}
+                    {/* Upload payment proof button */}
+                    {r.paymentStatus !== 'paid' && (
+                      <label
+                        className="cursor-pointer text-base hover:scale-110 transition-transform"
+                        title="Upload payment proof"
+                      >
+                        📸
+                        <input
+                          type="file"
+                          accept="image/*"
+                          capture="environment"
+                          className="hidden"
+                          disabled={uploadingProof === r.id}
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) uploadPaymentProof(r.id, file);
+                            e.target.value = '';
+                          }}
+                        />
+                      </label>
+                    )}
+                    {uploadingProof === r.id && (
+                      <span className="text-base animate-pulse">⏳</span>
+                    )}
                   </div>
                   <div className="text-sm text-slate-500 md:text-xs">
                     {[r.branch, r.rollNumber].filter(Boolean).join(' · ')}
+                  </div>
+                  {r.phone && (
+                    <a
+                      href={`tel:${r.phone}`}
+                      className="mt-1 inline-flex items-center gap-1 text-sm font-medium text-blue-600 hover:text-blue-700 md:text-xs"
+                    >
+                      📞 {r.phone}
+                    </a>
+                  )}
+                  {/* Location field */}
+                  <div className="mt-1 flex items-center gap-2">
+                    {editingLocation?.userId === r.id ? (
+                      <>
+                        <input
+                          type="text"
+                          value={editingLocation.value}
+                          onChange={(e) =>
+                            setEditingLocation({ userId: r.id, value: e.target.value })
+                          }
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') saveLocation(r.id, editingLocation.value);
+                            if (e.key === 'Escape') setEditingLocation(null);
+                          }}
+                          placeholder="e.g. Bhubaneswar"
+                          disabled={savingLocation === r.id}
+                          className="input w-40 py-1 text-xs"
+                          autoFocus
+                        />
+                        <button
+                          onClick={() => saveLocation(r.id, editingLocation.value)}
+                          disabled={savingLocation === r.id}
+                          className="text-xs text-emerald-600 hover:text-emerald-700 disabled:opacity-50"
+                        >
+                          {savingLocation === r.id ? '...' : '✓'}
+                        </button>
+                        <button
+                          onClick={() => setEditingLocation(null)}
+                          disabled={savingLocation === r.id}
+                          className="text-xs text-slate-400 hover:text-slate-600"
+                        >
+                          ✕
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-xs text-slate-500">
+                          📍 {r.location || 'Location not set'}
+                        </span>
+                        <button
+                          onClick={() =>
+                            setEditingLocation({ userId: r.id, value: r.location || '' })
+                          }
+                          className="text-xs text-blue-600 hover:text-blue-700"
+                        >
+                          ✎
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
                 <div className="flex gap-2">
@@ -281,13 +608,51 @@ function WalkInRegistration({ onDone }) {
     contributionAmount: '',
     markPaid: false,
     checkIn: true,
+    paymentProof: null,
   };
   const [form, setForm] = useState(empty);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [done, setDone] = useState(null); // { name }
+  const [uploadingProof, setUploadingProof] = useState(false);
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  const handlePhotoUpload = async (file) => {
+    setUploadingProof(true);
+    setErr('');
+    try {
+      const compressImage = async (file) => {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            const img = new Image();
+            img.onload = () => {
+              const canvas = document.createElement('canvas');
+              const MAX_WIDTH = 800;
+              const scale = MAX_WIDTH / img.width;
+              canvas.width = MAX_WIDTH;
+              canvas.height = img.height * scale;
+              const ctx = canvas.getContext('2d');
+              ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+              resolve(canvas.toDataURL('image/jpeg', 0.7));
+            };
+            img.onerror = reject;
+            img.src = e.target.result;
+          };
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+      };
+
+      const compressed = await compressImage(file);
+      setForm((f) => ({ ...f, paymentProof: compressed, markPaid: true }));
+    } catch (e) {
+      setErr('Could not process image. Please try again.');
+    } finally {
+      setUploadingProof(false);
+    }
+  };
 
   const submit = async () => {
     setErr('');
@@ -401,6 +766,40 @@ function WalkInRegistration({ onDone }) {
                 placeholder="e.g. 5500"
               />
             </div>
+          </div>
+
+          {/* Payment proof upload */}
+          <div className="space-y-2">
+            <label className="label text-base md:text-sm">Payment Proof (optional)</label>
+            <div className="flex items-center gap-3">
+              <label className="btn bg-blue-600 text-white hover:bg-blue-700 cursor-pointer">
+                {uploadingProof ? '⏳ Processing...' : form.paymentProof ? '✓ Photo uploaded' : '📸 Take/Upload Photo'}
+                <input
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  className="hidden"
+                  disabled={uploadingProof || busy}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handlePhotoUpload(file);
+                    e.target.value = '';
+                  }}
+                />
+              </label>
+              {form.paymentProof && (
+                <button
+                  type="button"
+                  onClick={() => setForm((f) => ({ ...f, paymentProof: null, markPaid: false }))}
+                  className="text-sm text-slate-500 hover:text-slate-700"
+                >
+                  Remove
+                </button>
+              )}
+            </div>
+            <p className="text-xs text-slate-500">
+              Tap to open camera and take a photo of payment screenshot/confirmation
+            </p>
           </div>
 
           <div className="flex flex-wrap gap-4">
