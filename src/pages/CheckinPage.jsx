@@ -19,7 +19,7 @@ export default function CheckinPage() {
   const load = () => {
     setLoading(true);
     api
-      .get('/api/admin/responses')
+      .get('/api/volunteer/responses')
       .then((r) => setRecords(r.data.records))
       .catch((err) => setError(apiError(err)))
       .finally(() => setLoading(false));
@@ -81,9 +81,14 @@ export default function CheckinPage() {
   // Check-in statistics
   const stats = useMemo(() => {
     const checkedIn = records.filter((r) => r.eventPass?.checkedIn).length;
+    const notCheckedIn = records.filter((r) => !r.eventPass?.checkedIn).length;
     const tshirt = records.filter((r) => r.eventPass?.tshirt).length;
     const souvenir = records.filter((r) => r.eventPass?.souvenir).length;
     const paid = records.filter((r) => r.paymentStatus === 'paid').length;
+    const notPaid = records.filter((r) => r.paymentStatus !== 'paid').length;
+    const walkIns = records.filter((r) => r.isWalkIn).length;
+    const pendingTshirt = records.filter((r) => r.eventPass?.checkedIn && !r.eventPass?.tshirt).length;
+    const pendingSouvenir = records.filter((r) => r.eventPass?.checkedIn && !r.eventPass?.souvenir).length;
     
     // Branch-wise breakdown
     const byBranch = {};
@@ -97,7 +102,19 @@ export default function CheckinPage() {
       };
     });
     
-    return { checkedIn, tshirt, souvenir, paid, total: records.length, byBranch };
+    return { 
+      checkedIn, 
+      notCheckedIn, 
+      tshirt, 
+      souvenir, 
+      paid, 
+      notPaid, 
+      walkIns, 
+      pendingTshirt, 
+      pendingSouvenir, 
+      total: records.length, 
+      byBranch 
+    };
   }, [records]);
 
   const toggleAction = async (id, action, currentValue) => {
@@ -105,7 +122,7 @@ export default function CheckinPage() {
     setError('');
     setToast(null);
     try {
-      const res = await api.patch(`/api/admin/users/${id}/eventpass`, {
+      const res = await api.patch(`/api/volunteer/users/${id}/eventpass`, {
         [action]: !currentValue,
       });
       const record = records.find((r) => r.id === id);
@@ -140,7 +157,7 @@ export default function CheckinPage() {
     setSavingLocation(id);
     setError('');
     try {
-      const res = await api.patch(`/api/admin/users/${id}/eventpass`, { location });
+      const res = await api.patch(`/api/volunteer/users/${id}/eventpass`, { location });
       setRecords((prev) =>
         prev.map((r) => (r.id === id ? { ...r, location: res.data.location } : r)),
       );
@@ -346,7 +363,7 @@ export default function CheckinPage() {
               : 'bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50'
           }`}
         >
-          Show All
+          Show All ({stats.total})
         </button>
         <button
           onClick={() => setStatusFilter('checked-in')}
@@ -356,7 +373,7 @@ export default function CheckinPage() {
               : 'bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50'
           }`}
         >
-          ✅ Checked In
+          ✅ Checked In ({stats.checkedIn})
         </button>
         <button
           onClick={() => setStatusFilter('not-checked-in')}
@@ -366,7 +383,7 @@ export default function CheckinPage() {
               : 'bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50'
           }`}
         >
-          ⏳ Not Checked In
+          ⏳ Not Checked In ({stats.notCheckedIn})
         </button>
         <button
           onClick={() => setStatusFilter('paid')}
@@ -386,7 +403,7 @@ export default function CheckinPage() {
               : 'bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50'
           }`}
         >
-          ⏳ Not Paid ({stats.total - stats.paid})
+          ⏳ Not Paid ({stats.notPaid})
         </button>
         <button
           onClick={() => setStatusFilter('walk-in')}
@@ -396,7 +413,7 @@ export default function CheckinPage() {
               : 'bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50'
           }`}
         >
-          🚶 Walk-ins
+          🚶 Walk-ins ({stats.walkIns})
         </button>
         <button
           onClick={() => setStatusFilter('pending-tshirt')}
@@ -406,7 +423,7 @@ export default function CheckinPage() {
               : 'bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50'
           }`}
         >
-          👕 Pending T-shirt
+          👕 Pending T-shirt ({stats.pendingTshirt})
         </button>
         <button
           onClick={() => setStatusFilter('pending-souvenir')}
@@ -416,7 +433,7 @@ export default function CheckinPage() {
               : 'bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50'
           }`}
         >
-          🎁 Pending Souvenir
+          🎁 Pending Souvenir ({stats.pendingSouvenir})
         </button>
       </div>
 
@@ -663,7 +680,7 @@ function WalkInRegistration({ onDone }) {
     }
     setBusy(true);
     try {
-      const res = await api.post('/api/admin/walkin', {
+      const res = await api.post('/api/volunteer/walkin', {
         ...form,
         contributionAmount: Number(form.contributionAmount) || 0,
       });

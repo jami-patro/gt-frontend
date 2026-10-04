@@ -38,11 +38,11 @@ export default function App() {
               </ProtectedRoute>
             }
           />
-          {/* Event-day volunteer check-in (admin-only, manual fallback when QR fails). */}
+          {/* Event-day volunteer check-in (admin or volunteer access). */}
           <Route
             path="/checkin"
             element={
-              <ProtectedRoute adminOnly>
+              <ProtectedRoute allowVolunteer>
                 <CheckinPage />
               </ProtectedRoute>
             }
