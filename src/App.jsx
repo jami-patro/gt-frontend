@@ -7,6 +7,7 @@ import ForgotPasswordPage from './pages/ForgotPasswordPage.jsx';
 import RegisterPage from './pages/RegisterPage.jsx';
 import DashboardPage from './pages/DashboardPage.jsx';
 import AdminPage from './pages/AdminPage.jsx';
+import CheckinPage from './pages/CheckinPage.jsx';
 import PassPage from './pages/PassPage.jsx';
 import StationPage from './pages/StationPage.jsx';
 import RevealPage from './pages/RevealPage.jsx';
@@ -34,6 +35,15 @@ export default function App() {
             element={
               <ProtectedRoute adminOnly>
                 <AdminPage />
+              </ProtectedRoute>
+            }
+          />
+          {/* Event-day volunteer check-in (admin-only, manual fallback when QR fails). */}
+          <Route
+            path="/checkin"
+            element={
+              <ProtectedRoute adminOnly>
+                <CheckinPage />
               </ProtectedRoute>
             }
           />

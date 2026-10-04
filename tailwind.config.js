@@ -34,6 +34,15 @@ export default {
         glow: '0 0 60px -12px rgba(255, 214, 10, 0.55)',
         card: '0 1px 3px rgba(0,0,0,0.06), 0 10px 30px -18px rgba(0,0,0,0.25)',
       },
+      keyframes: {
+        slideDown: {
+          '0%': { transform: 'translate(-50%, -20px)', opacity: '0' },
+          '100%': { transform: 'translate(-50%, 0)', opacity: '1' },
+        },
+      },
+      animation: {
+        slideDown: 'slideDown 0.3s ease-out',
+      },
     },
   },
   plugins: [],
