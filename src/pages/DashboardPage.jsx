@@ -403,7 +403,7 @@ function EventPassSection() {
       </div>
 
       {/* Live redemption status */}
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+      <div className="grid grid-cols-3 gap-2">
         {items.map(([emoji, label, done]) => (
           <div
             key={label}
