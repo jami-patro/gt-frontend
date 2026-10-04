@@ -418,6 +418,7 @@ function EventPassSection() {
             </div>
           </div>
         ))}
+      </div>
     </div>
   );
 }
