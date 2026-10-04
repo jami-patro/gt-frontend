@@ -218,13 +218,6 @@ export default function StationPage() {
             <ActionButton label="Check in" emoji="✅" done={s.checkedIn} busy={busy === 'checkin'} onClick={() => markAction('checkin')} />
             <ActionButton label="T-shirt" emoji="👕" done={s.tshirt} busy={busy === 'tshirt'} onClick={() => markAction('tshirt')} />
             <ActionButton label="Souvenir" emoji="🎁" done={s.souvenir} busy={busy === 'souvenir'} onClick={() => markAction('souvenir')} />
-            <ActionButton
-              label={`Drink (${s.drinks || 0}/2)`}
-              emoji="🥤"
-              done={(s.drinks || 0) >= 2}
-              busy={busy === 'drink'}
-              onClick={() => markAction('drink')}
-            />
           </div>
 
           {actionMsg && <div className="text-center text-sm font-semibold text-slate-600">{actionMsg}</div>}

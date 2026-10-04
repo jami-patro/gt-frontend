@@ -158,31 +158,7 @@ export default function PassPage() {
           onClick={() => update({ souvenir: !s.souvenir }, 'souvenir')}
         />
 
-        {/* Drinks — running count, capped at 2 */}
-        <div className="rounded-2xl border-2 border-slate-200 bg-white px-4 py-4">
-          <div className="flex items-center justify-between">
-            <span className="flex items-center gap-3">
-              <span className="text-2xl">🥤</span>
-              <span className="text-base font-bold text-slate-800">Drinks</span>
-            </span>
-            <span className="text-sm font-semibold text-slate-500">{s.drinks || 0} / 2 used</span>
-          </div>
-          <div className="mt-3 flex gap-2">
-            {[0, 1, 2].map((n) => (
-              <button
-                key={n}
-                type="button"
-                disabled={busy === 'drinks'}
-                onClick={() => update({ drinks: n }, 'drinks')}
-                className={`flex-1 rounded-xl py-2.5 text-sm font-bold ring-1 transition disabled:opacity-60 ${
-                  (s.drinks || 0) === n
-                    ? 'bg-brand-500 text-white ring-brand-500'
-                    : 'bg-white text-slate-600 ring-slate-200 hover:bg-slate-50'
-                }`}
-              >
-                {n}
-              </button>
-            ))}
+        {/* Drinks counter removed — feature dropped */}
           </div>
         </div>
       </div>

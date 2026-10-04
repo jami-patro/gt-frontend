@@ -163,7 +163,6 @@ function PassCell({ pass }) {
       {chip(p.checkedIn, p.checkedIn ? 'Checked in' : 'Not checked in', '✅')}
       {chip(p.tshirt, p.tshirt ? 'T-shirt collected' : 'T-shirt pending', '👕')}
       {chip(p.souvenir, p.souvenir ? 'Souvenir collected' : 'Souvenir pending', '🎁')}
-      {chip(drinks > 0, `Drinks: ${drinks}/2`, `🥤${drinks}`)}
     </div>
   );
 }

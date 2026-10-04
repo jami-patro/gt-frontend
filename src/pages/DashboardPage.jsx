@@ -370,7 +370,7 @@ function EventPassSection() {
         </span>
       </div>
       <p className="text-sm text-slate-600">
-        Show this QR at the venue. Our team will scan it for check-in, T-shirt, souvenir and drinks.
+        Show this QR at the venue. Our team will scan it for check-in, T-shirt and souvenir.
       </p>
 
       <div className="flex flex-col items-center gap-3 rounded-2xl border border-slate-100 bg-slate-50/60 p-5">
@@ -403,7 +403,7 @@ function EventPassSection() {
       </div>
 
       {/* Live redemption status */}
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
         {items.map(([emoji, label, done]) => (
           <div
             key={label}
@@ -418,12 +418,6 @@ function EventPassSection() {
             </div>
           </div>
         ))}
-        <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-center">
-          <div className="text-xl">🥤</div>
-          <div className="mt-0.5 text-xs font-semibold text-slate-600">Drinks</div>
-          <div className="text-xs font-bold text-slate-500">{s.drinks || 0} / 2</div>
-        </div>
-      </div>
     </div>
   );
 }
