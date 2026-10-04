@@ -158,8 +158,6 @@ export default function PassPage() {
           onClick={() => update({ souvenir: !s.souvenir }, 'souvenir')}
         />
       </div>
-    </div>
-  </div>
 
       <Link
         to="/admin"
