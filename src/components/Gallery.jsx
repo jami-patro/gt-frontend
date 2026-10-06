@@ -11,8 +11,8 @@ export default function Gallery() {
     <section>
       <h2 className="mb-4 text-2xl font-bold tracking-tight text-slate-900">Memories</h2>
 
-      {/* Clean single-row grid - all same height */}
-      <div className="grid grid-cols-5 gap-3 sm:gap-4">
+      {/* Responsive grid: 2 cols mobile, 3 cols tablet, 5 cols desktop */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 lg:gap-4">
         {galleryImages.map((img, i) => {
           const isPhoto = i <= 1; // First two are campus photos
           
