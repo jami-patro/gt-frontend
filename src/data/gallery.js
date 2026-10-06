@@ -10,5 +10,7 @@
 export const galleryImages = [
   { src: '/gallery/college.png', caption: 'Our college' },
   { src: '/gallery/collegeinside.jpeg', caption: 'Inside campus' },
+  { src: '/gallery/branch.jpeg', caption: 'Our batch' },
+  { src: '/gallery/language.jpeg' },
   { src: '/gallery/25.jpeg', caption: '25 years!' },
 ];

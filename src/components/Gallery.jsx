@@ -9,29 +9,35 @@ export default function Gallery() {
 
   return (
     <section>
-      <h2 className="mb-4 text-xl font-bold tracking-tight text-slate-900">Memories</h2>
+      <h2 className="mb-4 text-2xl font-bold tracking-tight text-slate-900">Memories</h2>
 
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-        {galleryImages.map((img, i) => (
-          <button
-            key={i}
-            onClick={() => setActive(img)}
-            className="group relative flex aspect-[4/3] items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-card transition hover:-translate-y-0.5 hover:shadow-lg"
-          >
-            {/* object-contain keeps logos/photos fully visible and centered */}
-            <img
-              src={img.src}
-              alt={img.caption || 'College memory'}
-              loading="lazy"
-              className="max-h-full max-w-full object-contain p-2 transition duration-300 group-hover:scale-[1.03]"
-            />
-            {img.caption && (
-              <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/55 to-transparent px-3 py-2 text-left text-xs font-medium text-white">
-                {img.caption}
-              </span>
-            )}
-          </button>
-        ))}
+      {/* Clean single-row grid - all same height */}
+      <div className="grid grid-cols-5 gap-3 sm:gap-4">
+        {galleryImages.map((img, i) => {
+          const isPhoto = i <= 1; // First two are campus photos
+          
+          return (
+            <button
+              key={i}
+              onClick={() => setActive(img)}
+              className="group relative flex aspect-[4/3] items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-white shadow-md transition hover:-translate-y-1 hover:shadow-xl"
+            >
+              <img
+                src={img.src}
+                alt={img.caption || 'College memory'}
+                loading="lazy"
+                className={`h-full w-full transition duration-300 group-hover:scale-105 ${
+                  isPhoto ? 'object-cover' : 'object-contain p-3'
+                }`}
+              />
+              {img.caption && (
+                <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 to-transparent px-2 py-2 text-left text-xs font-semibold text-white">
+                  {img.caption}
+                </span>
+              )}
+            </button>
+          );
+        })}
       </div>
 
       {/* Lightbox */}
