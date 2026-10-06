@@ -62,27 +62,56 @@ function CountBox({ value, label }) {
 function ProgrammeTimeline({ schedule }) {
   if (!Array.isArray(schedule) || schedule.length === 0) return null;
 
+  // Split schedule into two columns
+  const midpoint = Math.ceil(schedule.length / 2);
+  const leftColumn = schedule.slice(0, midpoint);
+  const rightColumn = schedule.slice(midpoint);
+
   return (
     <section>
       <h2 className="mb-4 text-xl font-bold tracking-tight text-slate-900">Programme for the day</h2>
-      <div className="card">
-        <ol className="relative space-y-6 border-l-2 border-brand-200 pl-6">
-          {schedule.map((item, i) => (
-            <li key={i} className="relative">
-              {/* Timeline dot */}
-              <span className="absolute -left-[31px] top-1 grid h-4 w-4 place-items-center rounded-full bg-brand-400 ring-4 ring-brand-100" />
-              {item.time && (
-                <div className="text-xs font-semibold uppercase tracking-wide text-brand-600">
-                  {item.time}
-                </div>
-              )}
-              <div className="mt-0.5 font-semibold text-slate-900">{item.title}</div>
-              {item.description && (
-                <div className="mt-0.5 text-sm text-slate-500">{item.description}</div>
-              )}
-            </li>
-          ))}
-        </ol>
+      <div className="grid gap-4 md:grid-cols-2">
+        {/* Left column */}
+        <div className="card">
+          <ol className="relative space-y-6 border-l-2 border-brand-200 pl-6">
+            {leftColumn.map((item, i) => (
+              <li key={i} className="relative">
+                {/* Timeline dot */}
+                <span className="absolute -left-[31px] top-1 grid h-4 w-4 place-items-center rounded-full bg-brand-400 ring-4 ring-brand-100" />
+                {item.time && (
+                  <div className="text-xs font-semibold uppercase tracking-wide text-brand-600">
+                    {item.time}
+                  </div>
+                )}
+                <div className="mt-0.5 font-semibold text-slate-900">{item.title}</div>
+                {item.description && (
+                  <div className="mt-0.5 text-sm text-slate-500">{item.description}</div>
+                )}
+              </li>
+            ))}
+          </ol>
+        </div>
+
+        {/* Right column */}
+        <div className="card">
+          <ol className="relative space-y-6 border-l-2 border-brand-200 pl-6">
+            {rightColumn.map((item, i) => (
+              <li key={i} className="relative">
+                {/* Timeline dot */}
+                <span className="absolute -left-[31px] top-1 grid h-4 w-4 place-items-center rounded-full bg-brand-400 ring-4 ring-brand-100" />
+                {item.time && (
+                  <div className="text-xs font-semibold uppercase tracking-wide text-brand-600">
+                    {item.time}
+                  </div>
+                )}
+                <div className="mt-0.5 font-semibold text-slate-900">{item.title}</div>
+                {item.description && (
+                  <div className="mt-0.5 text-sm text-slate-500">{item.description}</div>
+                )}
+              </li>
+            ))}
+          </ol>
+        </div>
       </div>
     </section>
   );
@@ -487,9 +516,14 @@ export default function LandingPage() {
 
           <div className="mt-8 flex flex-wrap gap-3">
             {user ? (
-              <Link to="/dashboard" className="btn-accent">
-                Update my RSVP
-              </Link>
+              <>
+                <Link to="/dashboard" className="btn-accent">
+                  Update my RSVP
+                </Link>
+                <Link to="/dashboard" className="btn-accent">
+                  Contribute now
+                </Link>
+              </>
             ) : (
               <>
                 <Link to="/register" className="btn-accent">
@@ -506,6 +540,12 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
+
+      {/* Photo gallery - college memories */}
+      <Gallery />
+
+      {/* Share your photos & videos (in-site Cloudinary uploader + wall) */}
+      <GallerySection url={event.galleryUrl} />
 
       {/* Event details */}
       <section>
@@ -594,39 +634,37 @@ export default function LandingPage() {
       {/* Programme / running order for the day */}
       <ProgrammeTimeline schedule={event.schedule} />
 
-      {/* Contribution CTA — links to login/dashboard to pay */}
-      <ContributionCTA amount={payment?.amount} note={payment?.note} user={user} />
-
-      {/* Share your photos & videos (in-site Cloudinary uploader + wall) */}
-      <GallerySection url={event.galleryUrl} />
-
       {/* Live stats */}
       <section>
         <h2 className="mb-4 text-xl font-bold tracking-tight text-slate-900">Live count</h2>
+        
+        {/* Main stats - first row */}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <StatCard value={stats?.attending ?? '—'} label="Attending" accent="text-emerald-600" />
           <StatCard value={stats?.maybe ?? '—'} label="Maybe" accent="text-amber-500" />
           <StatCard value={stats?.headcount ?? '—'} label="Total headcount" accent="text-slate-900" />
           <StatCard value={stats?.registered ?? '—'} label="Registered" accent="text-slate-900" />
-          {contributors.count > 0 && (
-            <StatCard value={contributors.count} label="Contributed" accent="text-emerald-600" />
-          )}
-          {stats?.checkedIn > 0 && (
-            <StatCard value={stats.checkedIn} label="✅ Checked in" accent="text-emerald-600" />
-          )}
         </div>
 
-        {stats?.food && (
-          <div className="mt-3 grid grid-cols-3 gap-3 sm:max-w-lg">
-            <StatCard value={stats.food.veg} label="Veg" accent="text-green-600" />
-            <StatCard value={stats.food.nonVeg} label="Non-veg" accent="text-rose-600" />
-            <StatCard value={stats.pending ?? '—'} label="Pending approval" accent="text-amber-600" />
+        {/* Secondary stats - contributed, checked in, food preferences & pending - all in row 2 */}
+        {(contributors.count > 0 || (stats?.checkedIn ?? 0) > 0 || stats?.food) && (
+          <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+            {contributors.count > 0 && (
+              <StatCard value={contributors.count} label="Contributed" accent="text-emerald-600" />
+            )}
+            {stats?.checkedIn > 0 && (
+              <StatCard value={stats.checkedIn} label="✅ Checked in" accent="text-emerald-600" />
+            )}
+            {stats?.food && (
+              <>
+                <StatCard value={stats.food.veg} label="Veg" accent="text-green-600" />
+                <StatCard value={stats.food.nonVeg} label="Non-veg" accent="text-rose-600" />
+                <StatCard value={stats.pending ?? '—'} label="Pending approval" accent="text-amber-600" />
+              </>
+            )}
           </div>
         )}
       </section>
-
-      {/* Photo gallery (renders only when photos are added) */}
-      <Gallery />
 
       {/* Attendee wall */}
       {/* Attendee + contributor walls, side by side on wider screens.
