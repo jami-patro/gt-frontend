@@ -864,10 +864,9 @@ function WalkInRegistration({ onDone }) {
               <select className="input text-base md:text-sm" value={form.paymentMethodUsed} onChange={set('paymentMethodUsed')}>
                 <option value="">— Select if paid —</option>
                 <option value="Cash">Cash</option>
-                <option value="UPI - PhonePe">UPI - PhonePe</option>
-                <option value="UPI - GPay">UPI - GPay</option>
-                <option value="UPI - Paytm">UPI - Paytm</option>
-                <option value="Bank Transfer">Bank Transfer</option>
+                <option value="PhonePe - J Srikanta Patro">PhonePe - J Srikanta Patro</option>
+                <option value="GooglePay - Saumendra Pattnaik">GooglePay - Saumendra Pattnaik</option>
+                <option value="Bank Transfer - Shibasis Hota">Bank Transfer - Shibasis Hota (ICICI)</option>
                 <option value="Other">Other</option>
               </select>
             </div>
