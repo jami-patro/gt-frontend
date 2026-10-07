@@ -218,6 +218,57 @@ export default function CheckinPage() {
       
       setToast({ name: records.find((r) => r.id === id)?.name || 'Member', action: 'payment proof uploaded' });
       setTimeout(() => setToast(null), 3000);
+    } catch (e) {
+      setError(e.response?.data?.error || e.message || 'Failed to upload');
+    } finally {
+      setUploadingProof(null);
+    }
+  };
+
+  const markPaidCash = async (id) => {
+    const member = records.find((r) => r.id === id);
+    if (!member) return;
+    
+    const amount = prompt(`Mark ${member.name} as paid (Cash)\n\nEnter amount:`, '5500');
+    if (!amount) return;
+    
+    const parsedAmount = parseInt(amount, 10);
+    if (isNaN(parsedAmount) || parsedAmount <= 0) {
+      alert('Please enter a valid amount');
+      return;
+    }
+    
+    setUploadingProof(id);
+    setError('');
+    try {
+      const res = await api.patch(`/api/admin/users/${id}/payment`, {
+        paymentStatus: 'paid',
+        contributionAmount: parsedAmount,
+        paymentMethodUsed: 'Cash',
+        paymentNote: 'Paid in cash at check-in desk',
+      });
+      
+      setRecords((prev) =>
+        prev.map((r) =>
+          r.id === id
+            ? {
+                ...r,
+                paymentStatus: res.data.paymentStatus,
+                contributionAmount: res.data.contributionAmount,
+                hasProofOrTxn: true,
+              }
+            : r,
+        ),
+      );
+      
+      setToast({ name: member.name, action: 'marked as paid (cash)' });
+      setTimeout(() => setToast(null), 3000);
+    } catch (e) {
+      setError(e.response?.data?.error || e.message || 'Failed to mark as paid');
+    } finally {
+      setUploadingProof(null);
+    }
+  };
     } catch (err) {
       setError(apiError(err, 'Could not upload payment proof'));
     } finally {
@@ -472,24 +523,34 @@ export default function CheckinPage() {
                     )}
                     {/* Upload payment proof button */}
                     {r.paymentStatus !== 'paid' && (
-                      <label
-                        className="cursor-pointer text-base hover:scale-110 transition-transform"
-                        title="Upload payment proof"
-                      >
-                        📸
-                        <input
-                          type="file"
-                          accept="image/*"
-                          capture="environment"
-                          className="hidden"
+                      <>
+                        <label
+                          className="cursor-pointer text-base hover:scale-110 transition-transform"
+                          title="Upload payment proof (UPI/Bank)"
+                        >
+                          📸
+                          <input
+                            type="file"
+                            accept="image/*"
+                            capture="environment"
+                            className="hidden"
+                            disabled={uploadingProof === r.id}
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) uploadPaymentProof(r.id, file);
+                              e.target.value = '';
+                            }}
+                          />
+                        </label>
+                        <button
+                          onClick={() => markPaidCash(r.id)}
                           disabled={uploadingProof === r.id}
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (file) uploadPaymentProof(r.id, file);
-                            e.target.value = '';
-                          }}
-                        />
-                      </label>
+                          className="text-base hover:scale-110 transition-transform disabled:opacity-50"
+                          title="Mark as paid (Cash)"
+                        >
+                          💵
+                        </button>
+                      </>
                     )}
                     {uploadingProof === r.id && (
                       <span className="text-base animate-pulse">⏳</span>
