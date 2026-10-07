@@ -697,6 +697,7 @@ function WalkInRegistration({ onDone }) {
     foodPreference: 'veg',
     tshirtSize: '',
     contributionAmount: '',
+    paymentNote: '',
     markPaid: false,
     checkIn: true,
     paymentProof: null,
@@ -855,6 +856,15 @@ function WalkInRegistration({ onDone }) {
                 value={form.contributionAmount}
                 onChange={set('contributionAmount')}
                 placeholder="e.g. 5500"
+              />
+            </div>
+            <div>
+              <label className="label text-base md:text-sm">Payment Notes (optional)</label>
+              <input
+                className="input text-base md:text-sm"
+                value={form.paymentNote}
+                onChange={set('paymentNote')}
+                placeholder="e.g., Paid cash at desk"
               />
             </div>
           </div>
