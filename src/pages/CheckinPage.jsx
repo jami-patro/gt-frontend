@@ -697,6 +697,7 @@ function WalkInRegistration({ onDone }) {
     foodPreference: 'veg',
     tshirtSize: '',
     contributionAmount: '',
+    paymentMethodUsed: '',
     paymentNote: '',
     markPaid: false,
     checkIn: true,
@@ -859,12 +860,24 @@ function WalkInRegistration({ onDone }) {
               />
             </div>
             <div>
+              <label className="label text-base md:text-sm">Payment Method</label>
+              <select className="input text-base md:text-sm" value={form.paymentMethodUsed} onChange={set('paymentMethodUsed')}>
+                <option value="">— Select if paid —</option>
+                <option value="Cash">Cash</option>
+                <option value="UPI - PhonePe">UPI - PhonePe</option>
+                <option value="UPI - GPay">UPI - GPay</option>
+                <option value="UPI - Paytm">UPI - Paytm</option>
+                <option value="Bank Transfer">Bank Transfer</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+            <div className="md:col-span-2">
               <label className="label text-base md:text-sm">Payment Notes (optional)</label>
               <input
                 className="input text-base md:text-sm"
                 value={form.paymentNote}
                 onChange={set('paymentNote')}
-                placeholder="e.g., Paid cash at desk"
+                placeholder="e.g., Paid cash at desk, Transaction ID: 123456"
               />
             </div>
           </div>
