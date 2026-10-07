@@ -288,12 +288,6 @@ export default function CheckinPage() {
       setUploadingProof(null);
     }
   };
-    } catch (err) {
-      setError(apiError(err, 'Could not upload payment proof'));
-    } finally {
-      setUploadingProof(null);
-    }
-  };
 
   if (loading) {
     return <div className="grid min-h-[50vh] place-items-center text-slate-400">Loading…</div>;
