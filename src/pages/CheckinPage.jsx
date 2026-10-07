@@ -197,10 +197,28 @@ export default function CheckinPage() {
         });
       };
 
+      const member = records.find((r) => r.id === id);
+      const memberName = member?.name || 'Member';
+      
+      // Ask for contribution amount
+      const amount = prompt(`Upload payment proof for ${memberName}\n\nEnter amount:`, '5500');
+      if (!amount) {
+        setUploadingProof(null);
+        return;
+      }
+      
+      const parsedAmount = parseInt(amount, 10);
+      if (isNaN(parsedAmount) || parsedAmount <= 0) {
+        alert('Please enter a valid amount');
+        setUploadingProof(null);
+        return;
+      }
+
       const compressed = await compressImage(file);
       const res = await api.patch(`/api/admin/users/${id}/payment`, {
         paymentProof: compressed,
         paymentStatus: 'paid',
+        contributionAmount: parsedAmount,
       });
       
       setRecords((prev) =>
@@ -209,6 +227,7 @@ export default function CheckinPage() {
             ? {
                 ...r,
                 paymentStatus: res.data.paymentStatus,
+                contributionAmount: res.data.contributionAmount,
                 hasProof: res.data.hasProof,
                 hasProofOrTxn: res.data.hasProofOrTxn,
               }
@@ -216,7 +235,7 @@ export default function CheckinPage() {
         ),
       );
       
-      setToast({ name: records.find((r) => r.id === id)?.name || 'Member', action: 'payment proof uploaded' });
+      setToast({ name: memberName, action: 'payment proof uploaded & marked as paid' });
       setTimeout(() => setToast(null), 3000);
     } catch (e) {
       setError(e.response?.data?.error || e.message || 'Failed to upload');
