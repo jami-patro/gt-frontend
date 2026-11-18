@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import { api, apiError } from '../lib/api.js';
 import { compressImage } from '../lib/image.js';
+import FinancePanel from '../components/FinancePanel.jsx';
 
 const BRANCHES = ['Computer Science', 'Electrical', 'Mechanical', 'Civil', 'Electronics'];
 
@@ -814,6 +815,9 @@ export default function AdminPage() {
           </p>
         </div>
       )}
+
+      {/* Expenditure & balance (checks & balances) */}
+      <FinancePanel />
 
       {/* Event-day reveal slideshow launcher */}
       <div className="card flex flex-wrap items-center justify-between gap-3">
