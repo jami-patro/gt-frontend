@@ -379,6 +379,202 @@ function ContributionCTA({ amount, note, user }) {
   );
 }
 
+// Public accounts / transparency panel. Renders only when an admin has
+// published it. Collapsed by default — expands on click.
+function QuoteViewModal({ id, onClose }) {
+  const [img, setImg] = useState(null);
+  const [err, setErr] = useState('');
+  useEffect(() => {
+    let alive = true;
+    api
+      .get(`/api/public/finance/expenses/${id}/quotation-proof`)
+      .then((r) => alive && setImg(r.data?.image || null))
+      .catch(() => alive && setErr('Could not load the quotation'));
+    return () => {
+      alive = false;
+    };
+  }, [id]);
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={onClose}>
+      <div
+        className="w-full max-w-lg rounded-2xl bg-white p-5 text-center shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="text-xs font-semibold uppercase tracking-widest text-slate-400">📄 Quotation</div>
+        <div className="mt-4 flex justify-center">
+          {img ? (
+            <img src={img} alt="Quotation" className="max-h-[60vh] w-auto rounded-lg ring-1 ring-slate-200" />
+          ) : err ? (
+            <div className="py-16 text-sm text-rose-600">{err}</div>
+          ) : (
+            <div className="py-16 text-sm text-slate-400">Loading…</div>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="mt-4 rounded-xl bg-white px-4 py-2 text-sm font-semibold text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50"
+        >
+          Close
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function AccountsPanel() {
+  const [data, setData] = useState(null); // { published, totals, expenses }
+  const [open, setOpen] = useState(false);
+  const [quoteView, setQuoteView] = useState(null); // expense id whose quote is open
+
+  useEffect(() => {
+    api
+      .get('/api/public/finance')
+      .then((r) => setData(r.data && typeof r.data === 'object' ? r.data : null))
+      .catch(() => {});
+  }, []);
+
+  // Hidden entirely until published.
+  if (!data || !data.published) return null;
+
+  const t = data.totals || {};
+  const expenses = Array.isArray(data.expenses) ? data.expenses : [];
+  const money = (n) => `₹${(Number(n) || 0).toLocaleString('en-IN')}`;
+
+  return (
+    <section>
+      <div className="card overflow-hidden p-0">
+        {/* Header toggle */}
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left hover:bg-slate-50"
+          aria-expanded={open}
+        >
+          <div>
+            <h2 className="text-lg font-bold tracking-tight text-slate-900">
+              💰 Accounts &amp; Transparency
+            </h2>
+            <p className="text-xs text-slate-500">
+              Where the collection goes — click to {open ? 'hide' : 'view'} the details.
+            </p>
+          </div>
+          <span
+            className={`shrink-0 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`}
+            aria-hidden="true"
+          >
+            ▼
+          </span>
+        </button>
+
+        {open && (
+          <div className="border-t border-slate-100 px-5 py-4">
+            {/* Totals */}
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {[
+                [
+                  'Collected',
+                  money(t.collected),
+                  'text-emerald-600',
+                  t.perHead > 0
+                    ? `${t.contributors || 0} × ${money(t.perHead)}`
+                    : `${t.contributors || 0} contributors`,
+                ],
+                ['Spent', money(t.spent), 'text-rose-600'],
+                ['Balance', money(t.balance), (t.balance || 0) < 0 ? 'text-rose-600' : 'text-indigo-600'],
+                ['Pending dues', money(t.outstanding), (t.outstanding || 0) > 0 ? 'text-amber-600' : 'text-slate-400'],
+              ].map(([label, value, accent, sub]) => (
+                <div key={label} className="rounded-xl border border-slate-200 p-3 text-center">
+                  <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                    {label}
+                  </div>
+                  <div className={`mt-1 text-xl font-extrabold ${accent}`}>{value}</div>
+                  {sub && <div className="mt-0.5 text-[11px] text-slate-400">{sub}</div>}
+                </div>
+              ))}
+            </div>
+
+            {/* Per-expense breakdown */}
+            {expenses.length > 0 ? (
+              <div className="mt-4 overflow-x-auto">
+                <table className="w-full min-w-[520px] text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-400">
+                      <th className="px-2 py-2">Expense</th>
+                      <th className="px-2 py-2 text-right">Quotation</th>
+                      <th className="px-2 py-2 text-right">Paid</th>
+                      <th className="px-2 py-2 text-right">Due</th>
+                      <th className="px-2 py-2 text-center">Quote</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {expenses.map((e, i) => (
+                      <tr key={i} className="border-b border-slate-100">
+                        <td className="px-2 py-2">
+                          <div className="font-medium text-slate-800">{e.description}</div>
+                          <div className="text-xs text-slate-400">
+                            {e.category}
+                            {e.vendor ? ` · ${e.vendor}` : ''}
+                          </div>
+                          {e.note && <div className="mt-0.5 text-xs italic text-slate-500">* {e.note}</div>}
+                        </td>
+                        <td className="px-2 py-2 text-right text-slate-600">
+                          {e.quotation > 0 ? money(e.quotation) : '—'}
+                        </td>
+                        <td className="px-2 py-2 text-right font-semibold text-rose-600">
+                          {money(e.paid)}
+                        </td>
+                        <td className="px-2 py-2 text-right font-semibold text-amber-600">
+                          {e.due > 0 ? money(e.due) : '—'}
+                        </td>
+                        <td className="px-2 py-2 text-center">
+                          {e.hasQuotationProof ? (
+                            <button
+                              type="button"
+                              onClick={() => setQuoteView(e.id)}
+                              className="rounded-lg px-2 py-0.5 text-xs font-semibold text-indigo-600 hover:bg-indigo-50"
+                            >
+                              📄 View
+                            </button>
+                          ) : (
+                            <span className="text-xs text-slate-300">—</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr className="border-t-2 border-slate-200 font-bold text-slate-800">
+                      <td className="px-2 py-2">Total</td>
+                      <td className="px-2 py-2 text-right">
+                        {money(expenses.reduce((s, e) => s + (e.quotation || 0), 0))}
+                      </td>
+                      <td className="px-2 py-2 text-right text-rose-600">{money(t.spent)}</td>
+                      <td className="px-2 py-2 text-right text-amber-600">{money(t.outstanding)}</td>
+                      <td />
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            ) : (
+              <div className="mt-4 rounded-xl border border-dashed border-slate-200 py-6 text-center text-sm text-slate-400">
+                No expenses recorded yet.
+              </div>
+            )}
+
+            <p className="mt-3 text-xs text-slate-400">
+              Figures are kept up to date by the organizers. &quot;Due&quot; is the quotation minus
+              what&apos;s been paid so far.
+            </p>
+          </div>
+        )}
+      </div>
+
+      {quoteView && <QuoteViewModal id={quoteView} onClose={() => setQuoteView(null)} />}
+    </section>
+  );
+}
+
 function FilterChip({ label, count, active, onClick }) {
   return (
     <button
@@ -665,6 +861,9 @@ export default function LandingPage() {
           </div>
         )}
       </section>
+
+      {/* Accounts & transparency (public, collapsible, only when published) */}
+      <AccountsPanel />
 
       {/* Attendee wall */}
       {/* Attendee + contributor walls, side by side on wider screens.

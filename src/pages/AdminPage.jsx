@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import { api, apiError } from '../lib/api.js';
@@ -447,82 +447,128 @@ export default function AdminPage() {
     return s;
   }, [records]);
 
-  // Counts per payment status, used for the filter chips.
+  // Shared filter predicate. `exclude` names a filter dimension to skip, so a
+  // facet's own chip counts aren't narrowed by its own selection — but ARE
+  // narrowed by every OTHER active filter. This keeps the chip counts in sync
+  // with what the table / T-shirt view actually show.
+  const passes = useCallback(
+    (r, exclude) => {
+      const q = query.trim().toLowerCase();
+      if (exclude !== 'pay' && payFilter !== 'all' && (r.paymentStatus || 'not_paid') !== payFilter)
+        return false;
+      if (exclude !== 'checkin') {
+        if (checkinFilter === 'in' && !r.eventPass?.checkedIn) return false;
+        if (checkinFilter === 'out' && r.eventPass?.checkedIn) return false;
+      }
+      if (exclude !== 'teeColl') {
+        if (teeCollFilter === 'yes' && !r.eventPass?.tshirt) return false;
+        if (teeCollFilter === 'no' && r.eventPass?.tshirt) return false;
+      }
+      if (exclude !== 'souvenir') {
+        if (souvenirFilter === 'yes' && !r.eventPass?.souvenir) return false;
+        if (souvenirFilter === 'no' && r.eventPass?.souvenir) return false;
+      }
+      if (exclude !== 'tee') {
+        if (teeFilter === 'womens' && r.tshirtFit !== 'womens') return false;
+        if (teeFilter === 'mens' && r.tshirtFit === 'womens') return false;
+        if (teeFilter === 'nosize' && r.tshirtSize) return false;
+      }
+      if (
+        exclude !== 'method' &&
+        methodFilter !== 'all' &&
+        (r.paymentMethodUsed || 'Unspecified') !== methodFilter
+      )
+        return false;
+      if (exclude !== 'attendance' && attendanceFilter !== 'all' && r.attendance !== attendanceFilter)
+        return false;
+      if (q) {
+        const hit = [r.name, r.email, r.branch, r.rollNumber]
+          .filter(Boolean)
+          .some((v) => String(v).toLowerCase().includes(q));
+        if (!hit) return false;
+      }
+      return true;
+    },
+    [query, payFilter, checkinFilter, teeCollFilter, souvenirFilter, teeFilter, methodFilter, attendanceFilter],
+  );
+
+  // Counts per payment status (narrowed by every OTHER active filter).
   const payCounts = useMemo(() => {
-    const c = { all: records.length, paid: 0, not_paid: 0, pending: 0, rejected: 0 };
-    for (const r of records) {
+    const base = records.filter((r) => passes(r, 'pay'));
+    const c = { all: base.length, paid: 0, not_paid: 0, pending: 0, rejected: 0 };
+    for (const r of base) {
       const s = r.paymentStatus || 'not_paid';
       c[s] = (c[s] || 0) + 1;
     }
     return c;
-  }, [records]);
+  }, [records, passes]);
 
   // Attendance filter counts (for tee-size planning by who's coming).
   const attendanceCounts = useMemo(() => {
-    const c = { all: records.length, yes: 0, maybe: 0, no: 0 };
-    for (const r of records) {
+    const base = records.filter((r) => passes(r, 'attendance'));
+    const c = { all: base.length, yes: 0, maybe: 0, no: 0 };
+    for (const r of base) {
       if (r.attendance === 'yes') c.yes += 1;
       else if (r.attendance === 'maybe') c.maybe += 1;
       else if (r.attendance === 'no') c.no += 1;
     }
     return c;
-  }, [records]);
+  }, [records, passes]);
 
   // Check-in filter counts.
   const checkinCounts = useMemo(() => {
-    const c = { all: records.length, in: 0, out: 0 };
-    for (const r of records) {
+    const base = records.filter((r) => passes(r, 'checkin'));
+    const c = { all: base.length, in: 0, out: 0 };
+    for (const r of base) {
       if (r.eventPass?.checkedIn) c.in += 1;
       else c.out += 1;
     }
     return c;
-  }, [records]);
+  }, [records, passes]);
 
   // Tee-collected and souvenir-collected filter counts.
   const teeCollCounts = useMemo(() => {
-    const c = { all: records.length, yes: 0, no: 0 };
-    for (const r of records) {
+    const base = records.filter((r) => passes(r, 'teeColl'));
+    const c = { all: base.length, yes: 0, no: 0 };
+    for (const r of base) {
       if (r.eventPass?.tshirt) c.yes += 1;
       else c.no += 1;
     }
     return c;
-  }, [records]);
+  }, [records, passes]);
   const souvenirCounts = useMemo(() => {
-    const c = { all: records.length, yes: 0, no: 0 };
-    for (const r of records) {
+    const base = records.filter((r) => passes(r, 'souvenir'));
+    const c = { all: base.length, yes: 0, no: 0 };
+    for (const r of base) {
       if (r.eventPass?.souvenir) c.yes += 1;
       else c.no += 1;
     }
     return c;
-  }, [records]);
+  }, [records, passes]);
+
+  // T-shirt fit filter counts (narrowed by every OTHER active filter), so the
+  // fit chips match the T-shirt order view below.
+  const fitCounts = useMemo(() => {
+    const base = records.filter((r) => passes(r, 'tee'));
+    const c = { all: base.length, mens: 0, womens: 0, nosize: 0 };
+    for (const r of base) {
+      if (r.tshirtFit === 'womens') c.womens += 1;
+      else c.mens += 1;
+      if (!r.tshirtSize) c.nosize += 1;
+    }
+    return c;
+  }, [records, passes]);
 
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    const rows = records.filter((r) => {
-      if (payFilter !== 'all' && (r.paymentStatus || 'not_paid') !== payFilter) return false;
-      if (checkinFilter === 'in' && !r.eventPass?.checkedIn) return false;
-      if (checkinFilter === 'out' && r.eventPass?.checkedIn) return false;
-      if (teeCollFilter === 'yes' && !r.eventPass?.tshirt) return false;
-      if (teeCollFilter === 'no' && r.eventPass?.tshirt) return false;
-      if (souvenirFilter === 'yes' && !r.eventPass?.souvenir) return false;
-      if (souvenirFilter === 'no' && r.eventPass?.souvenir) return false;
-      if (teeFilter === 'womens' && r.tshirtFit !== 'womens') return false;
-      if (teeFilter === 'mens' && r.tshirtFit === 'womens') return false;
-      if (teeFilter === 'nosize' && r.tshirtSize) return false;
-      if (methodFilter !== 'all' && (r.paymentMethodUsed || 'Unspecified') !== methodFilter) return false;
-      if (attendanceFilter !== 'all' && r.attendance !== attendanceFilter) return false;
-      if (!q) return true;
-      return [r.name, r.email, r.branch, r.rollNumber]
-        .filter(Boolean)
-        .some((v) => String(v).toLowerCase().includes(q));
-    });
+    // Apply every active filter (no exclusions) using the shared predicate.
+    const rows = records.filter((r) => passes(r, null));
     // Newest joiners on top, and anyone awaiting approval bubbles up first so
     // they're easy to spot and approve.
     return rows.sort((a, b) => {
       if (a.approved !== b.approved) return a.approved ? 1 : -1; // pending first
       return new Date(b.createdAt || 0) - new Date(a.createdAt || 0); // newest first
     });
-  }, [records, query, payFilter, checkinFilter, teeFilter, methodFilter, attendanceFilter, teeCollFilter, souvenirFilter]);
+  }, [records, passes]);
 
   // T-shirt order breakdown for the CURRENT filter — per size, split by fit,
   // so applying Coming / Paid / etc. tells you exactly how many to order.
@@ -1069,10 +1115,10 @@ export default function AdminPage() {
         {/* T-shirt fit filter */}
         <div className="flex flex-wrap gap-2">
           {[
-            ['all', '👕 All fits', records.length],
-            ['mens', "♂ Men's", summary.mensTee],
-            ['womens', "♀ Women's", summary.womensTee],
-            ['nosize', '❓ No size yet', summary.noSizeTee],
+            ['all', '👕 All fits', fitCounts.all],
+            ['mens', "♂ Men's", fitCounts.mens],
+            ['womens', "♀ Women's", fitCounts.womens],
+            ['nosize', '❓ No size yet', fitCounts.nosize],
           ].map(([value, label, count]) => (
             <button
               key={value}

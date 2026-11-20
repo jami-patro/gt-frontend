@@ -8,6 +8,7 @@ const CATEGORIES = [
   'Food & Catering',
   'Tent',
   'DJ & Sound',
+  'DJ, Stage, LED, Flex Setup',
   'Photography & Video',
   'Decoration',
   'Printing',
@@ -34,30 +35,40 @@ const fmtDate = (d) =>
 const EMPTY_FORM = {
   description: '',
   category: '',
-  amount: '',
-  bucket: '',
+  quotationAmount: '',
+  amount: '', // payment amount to record (initial on create / new on edit)
+  bucket: '', // expense default fund
+  paymentBucket: '', // fund for the inline payment (defaults to bucket)
   paidBy: '',
   paidTo: '',
   paymentMethod: 'cash',
   spentAt: new Date().toISOString().slice(0, 10),
   note: '',
   proof: null,
+  quotationProof: null,
 };
 
-// Receipt image popup (lazy-loaded from the backend).
-function ProofModal({ id, onClose }) {
+// Image popup for a payment receipt OR a quotation document (lazy-loaded).
+function ProofModal({ id, kind, paymentId, onClose }) {
   const [data, setData] = useState(null);
   const [err, setErr] = useState('');
+  const isQuote = kind === 'quotation';
+  const path = isQuote
+    ? 'quotation-proof'
+    : paymentId
+    ? `payments/${paymentId}/proof`
+    : 'proof';
+  const title = isQuote ? '📄 Quotation' : '🧾 Receipt';
   useEffect(() => {
     let alive = true;
     api
-      .get(`/api/admin/finance/expenses/${id}/proof`)
+      .get(`/api/admin/finance/expenses/${id}/${path}`)
       .then((r) => alive && setData(r.data))
-      .catch((e) => alive && setErr(apiError(e, 'Could not load the receipt')));
+      .catch((e) => alive && setErr(apiError(e, `Could not load the ${isQuote ? 'quotation' : 'receipt'}`)));
     return () => {
       alive = false;
     };
-  }, [id]);
+  }, [id, path, isQuote]);
 
   return (
     <div
@@ -69,18 +80,18 @@ function ProofModal({ id, onClose }) {
         onClick={(e) => e.stopPropagation()}
       >
         <div className="text-xs font-semibold uppercase tracking-widest text-slate-400">
-          🧾 Receipt
+          {title}
         </div>
         {data && (
           <div className="mt-1 text-sm font-bold text-ink-950">
-            {data.description} · paid by {data.paidBy}
+            {data.description} · {data.paidBy}
           </div>
         )}
         <div className="mt-4 flex justify-center">
           {data?.image ? (
             <img
               src={data.image}
-              alt="Receipt"
+              alt={isQuote ? 'Quotation' : 'Receipt'}
               className="max-h-[60vh] w-auto rounded-lg ring-1 ring-slate-200"
             />
           ) : err ? (
@@ -101,6 +112,358 @@ function ProofModal({ id, onClose }) {
   );
 }
 
+// Lists all installments for one expense and lets you add / delete them, each
+// with its own receipt. `expense` is always the freshest copy (looked up by the
+// parent from reloaded data), so totals stay in sync after each change.
+function PaymentsModal({ expense, bucketNames = [], onClose, onChanged }) {
+  const BLANK = {
+    amount: '',
+    method: 'cash',
+    bucket: expense.bucket || '',
+    paidAt: new Date().toISOString().slice(0, 10),
+    note: '',
+    proof: null,
+  };
+  const [pf, setPf] = useState(BLANK);
+  const [adding, setAdding] = useState(false);
+  const [editingPid, setEditingPid] = useState(null); // payment being edited
+  const [busy, setBusy] = useState(false);
+  const [proofBusy, setProofBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const [view, setView] = useState(null); // paymentId whose receipt is open
+
+  const payments = expense.payments || [];
+  const formOpen = adding || Boolean(editingPid);
+  const editingPayment = editingPid ? payments.find((p) => p.id === editingPid) : null;
+  const setField = (k, v) => setPf((f) => ({ ...f, [k]: v }));
+
+  const startAdd = () => {
+    setEditingPid(null);
+    setPf(BLANK);
+    setAdding(true);
+  };
+  const startEdit = (p) => {
+    setAdding(false);
+    setEditingPid(p.id);
+    setPf({
+      amount: String(p.amount ?? ''),
+      method: p.method || 'cash',
+      bucket: p.bucket || '',
+      paidAt: p.paidAt ? new Date(p.paidAt).toISOString().slice(0, 10) : '',
+      note: p.note || '',
+      proof: null, // keep existing unless a new file is picked
+    });
+  };
+  const closeForm = () => {
+    setAdding(false);
+    setEditingPid(null);
+    setPf(BLANK);
+  };
+
+  const pickProof = async (file) => {
+    if (!file) return;
+    setProofBusy(true);
+    setErr('');
+    try {
+      setField('proof', await compressImage(file, { maxDim: 1200, quality: 0.7 }));
+    } catch (e) {
+      setErr(apiError(e, 'Could not process that image'));
+    } finally {
+      setProofBusy(false);
+    }
+  };
+
+  const savePayment = async (ev) => {
+    ev.preventDefault();
+    setErr('');
+    if (!(Number(pf.amount) > 0)) return setErr('Enter a payment amount');
+    // UPI needs a receipt — on edit, an already-attached one counts.
+    const hasExistingProof = Boolean(editingPayment?.hasProof);
+    if (pf.method === 'upi' && !pf.proof && !hasExistingProof) {
+      return setErr('UPI payments need a receipt');
+    }
+    setBusy(true);
+    try {
+      if (editingPid) {
+        const body = {
+          amount: Number(pf.amount),
+          method: pf.method,
+          bucket: pf.bucket || expense.bucket || null,
+          paidAt: pf.paidAt || undefined,
+          note: pf.note.trim() || null,
+        };
+        if (pf.proof) body.proof = pf.proof; // only replace when a new one picked
+        await api.patch(`/api/admin/finance/expenses/${expense.id}/payments/${editingPid}`, body);
+      } else {
+        await api.post(`/api/admin/finance/expenses/${expense.id}/payments`, {
+          amount: Number(pf.amount),
+          method: pf.method,
+          bucket: pf.bucket || expense.bucket || null,
+          paidAt: pf.paidAt || undefined,
+          note: pf.note.trim() || null,
+          proof: pf.proof || undefined,
+        });
+      }
+      closeForm();
+      await onChanged();
+    } catch (e) {
+      setErr(apiError(e, 'Could not save payment'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const removePayment = async (pid) => {
+    if (!window.confirm('Delete this payment? The total paid will be recalculated.')) return;
+    setErr('');
+    try {
+      await api.delete(`/api/admin/finance/expenses/${expense.id}/payments/${pid}`);
+      await onChanged();
+    } catch (e) {
+      setErr(apiError(e, 'Could not delete payment'));
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={onClose}>
+      <div
+        className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-5 shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-widest text-slate-400">
+              Payments
+            </div>
+            <div className="text-lg font-extrabold text-ink-950">{expense.description}</div>
+            <div className="mt-0.5 text-xs text-slate-500">{expense.bucket || 'No fund'}</div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-xl bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50"
+          >
+            Close
+          </button>
+        </div>
+
+        {/* Quotation / paid / outstanding recap */}
+        <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+          <div className="rounded-lg border border-slate-200 p-2">
+            <div className="text-[11px] uppercase text-slate-400">Quotation</div>
+            <div className="text-sm font-bold text-slate-700">
+              {expense.quotationAmount > 0 ? inr(expense.quotationAmount) : '—'}
+            </div>
+          </div>
+          <div className="rounded-lg border border-slate-200 p-2">
+            <div className="text-[11px] uppercase text-slate-400">Total paid</div>
+            <div className="text-sm font-bold text-rose-600">{inr(expense.amount)}</div>
+          </div>
+          <div className="rounded-lg border border-slate-200 p-2">
+            <div className="text-[11px] uppercase text-slate-400">Outstanding</div>
+            <div className={`text-sm font-bold ${expense.outstanding > 0 ? 'text-amber-600' : 'text-slate-400'}`}>
+              {expense.quotationAmount > 0 ? inr(expense.outstanding) : '—'}
+            </div>
+          </div>
+        </div>
+
+        {err && (
+          <div className="mt-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+            {err}
+          </div>
+        )}
+
+        {/* Installments */}
+        <div className="mt-4">
+          {payments.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-slate-200 py-6 text-center text-sm text-slate-400">
+              No payments recorded yet.
+            </div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-400">
+                  <th className="px-2 py-1.5">Date</th>
+                  <th className="px-2 py-1.5 text-right">Amount</th>
+                  <th className="px-2 py-1.5">Fund</th>
+                  <th className="px-2 py-1.5">Method</th>
+                  <th className="px-2 py-1.5">Note</th>
+                  <th className="px-2 py-1.5 text-center">Receipt</th>
+                  <th className="px-2 py-1.5 text-right" />
+                </tr>
+              </thead>
+              <tbody>
+                {payments.map((p) => (
+                  <tr key={p.id} className="border-b border-slate-100">
+                    <td className="px-2 py-1.5 whitespace-nowrap text-slate-500">{fmtDate(p.paidAt)}</td>
+                    <td className="px-2 py-1.5 text-right font-semibold text-rose-600">{inr(p.amount)}</td>
+                    <td className="px-2 py-1.5">
+                      {p.bucket ? (
+                        <span className="inline-block rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-semibold text-indigo-700">
+                          {p.bucket}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-slate-300">—</span>
+                      )}
+                    </td>
+                    <td className="px-2 py-1.5 text-slate-500">{METHOD_LABEL[p.method] || p.method}</td>
+                    <td className="px-2 py-1.5 text-slate-500">{p.note || '—'}</td>
+                    <td className="px-2 py-1.5 text-center">
+                      {p.hasProof ? (
+                        <button
+                          type="button"
+                          onClick={() => setView(p.id)}
+                          className="rounded-lg px-2 py-0.5 text-xs font-semibold text-indigo-600 hover:bg-indigo-50"
+                        >
+                          🧾 View
+                        </button>
+                      ) : (
+                        <span className="text-xs text-slate-300">none</span>
+                      )}
+                    </td>
+                    <td className="px-2 py-1.5 text-right whitespace-nowrap">
+                      <button
+                        type="button"
+                        onClick={() => startEdit(p)}
+                        className="rounded-lg px-2 py-0.5 text-xs font-semibold text-slate-600 hover:bg-slate-100"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => removePayment(p.id)}
+                        className="rounded-lg px-2 py-0.5 text-xs font-semibold text-rose-600 hover:bg-rose-50"
+                      >
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        {/* Add / edit payment */}
+        {formOpen ? (
+          <form onSubmit={savePayment} className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-3">
+            <div className="text-sm font-bold text-slate-800">
+              {editingPid ? 'Edit payment' : 'Add a payment'}
+            </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <label className="block text-sm">
+                <span className="mb-1 block font-medium text-slate-600">Amount (₹) *</span>
+                <input
+                  type="number"
+                  min={0}
+                  value={pf.amount}
+                  onChange={(e) => setField('amount', e.target.value)}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-ink-950 focus:outline-none"
+                />
+              </label>
+              <label className="block text-sm">
+                <span className="mb-1 block font-medium text-slate-600">Paid from (fund)</span>
+                <select
+                  value={pf.bucket}
+                  onChange={(e) => setField('bucket', e.target.value)}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-ink-950 focus:outline-none"
+                >
+                  <option value="">Select fund…</option>
+                  {bucketNames.map((n) => (
+                    <option key={n} value={n}>
+                      {n}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block text-sm">
+                <span className="mb-1 block font-medium text-slate-600">Method</span>
+                <select
+                  value={pf.method}
+                  onChange={(e) => setField('method', e.target.value)}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-ink-950 focus:outline-none"
+                >
+                  {METHODS.map(([v, l]) => (
+                    <option key={v} value={v}>
+                      {l}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block text-sm">
+                <span className="mb-1 block font-medium text-slate-600">Date</span>
+                <input
+                  type="date"
+                  value={pf.paidAt}
+                  onChange={(e) => setField('paidAt', e.target.value)}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-ink-950 focus:outline-none"
+                />
+              </label>
+              <label className="block text-sm">
+                <span className="mb-1 block font-medium text-slate-600">
+                  Receipt {pf.method === 'upi' ? '*' : ''}{' '}
+                  {editingPid ? <span className="font-normal text-slate-400">(pick to replace)</span> : ''}
+                </span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => pickProof(e.target.files?.[0])}
+                  className="w-full text-sm text-slate-600 file:mr-2 file:rounded-lg file:border-0 file:bg-ink-950 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-ink-800"
+                />
+                {proofBusy && <span className="text-xs text-slate-400">Processing…</span>}
+                {pf.proof && !proofBusy && (
+                  <span className="text-xs font-medium text-emerald-600">✓ Attached</span>
+                )}
+                {!pf.proof && !proofBusy && editingPayment?.hasProof && (
+                  <span className="text-xs text-slate-400">Existing receipt kept</span>
+                )}
+              </label>
+            </div>
+            <label className="block text-sm">
+              <span className="mb-1 block font-medium text-slate-600">Note</span>
+              <input
+                type="text"
+                value={pf.note}
+                onChange={(e) => setField('note', e.target.value)}
+                placeholder="e.g. advance, final settlement (optional)"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-ink-950 focus:outline-none"
+              />
+            </label>
+            <div className="flex items-center gap-2">
+              <button
+                type="submit"
+                disabled={busy || proofBusy}
+                className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-50"
+              >
+                {busy ? 'Saving…' : 'Save payment'}
+              </button>
+              <button
+                type="button"
+                onClick={closeForm}
+                className="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
+        ) : (
+          <button
+            type="button"
+            onClick={startAdd}
+            className="mt-4 rounded-xl bg-ink-950 px-4 py-2 text-sm font-bold text-white hover:bg-ink-800"
+          >
+            + Add payment
+          </button>
+        )}
+
+        {view && (
+          <ProofModal id={expense.id} paymentId={view} onClose={() => setView(null)} />
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function FinancePanel() {
   const [data, setData] = useState(null); // { summary, byCategory, expenses }
   const [loading, setLoading] = useState(true);
@@ -110,12 +473,15 @@ export default function FinancePanel() {
   const [editingId, setEditingId] = useState(null);
   const [saving, setSaving] = useState(false);
   const [proofBusy, setProofBusy] = useState(false);
-  const [proofView, setProofView] = useState(null); // expense id
+  const [quoteBusy, setQuoteBusy] = useState(false);
+  const [proofView, setProofView] = useState(null); // { id, kind: 'quotation' }
+  const [paymentsFor, setPaymentsFor] = useState(null); // expense id
   // Fund mapping editor.
   const [showFunds, setShowFunds] = useState(false);
   const [fundDraft, setFundDraft] = useState([]); // [{ name, methods: [] }]
   const [methodLabels, setMethodLabels] = useState([]);
   const [savingFunds, setSavingFunds] = useState(false);
+  const [publishing, setPublishing] = useState(false);
 
   const load = async () => {
     try {
@@ -138,22 +504,41 @@ export default function FinancePanel() {
     () => (data?.funds || []).find((f) => f.name === form.bucket) || null,
     [data, form.bucket],
   );
-  // Whether the expense being edited already has a receipt stored.
-  const editingHasProof = useMemo(
-    () => Boolean(editingId && (data?.expenses || []).find((e) => e.id === editingId)?.hasProof),
+  // The fund the inline payment draws from (its own, or the expense default).
+  const paymentFund = useMemo(() => {
+    const name = form.paymentBucket || form.bucket;
+    return (data?.funds || []).find((f) => f.name === name) || null;
+  }, [data, form.paymentBucket, form.bucket]);
+  // Whether the expense being edited already has a receipt / quotation stored.
+  const editingExpense = useMemo(
+    () => (editingId ? (data?.expenses || []).find((e) => e.id === editingId) : null),
     [editingId, data],
   );
+  const editingHasQuote = Boolean(editingExpense?.hasQuotationProof);
   const proofRequired = form.paymentMethod === 'upi';
+  // Live outstanding preview in the form = quotation − total paid (≥ 0). On
+  // edit, total paid is the saved sum of installments (not an editable field).
+  const formOutstanding = useMemo(() => {
+    const q = Number(form.quotationAmount) || 0;
+    const paid = editingId ? Number(editingExpense?.amount) || 0 : Number(form.amount) || 0;
+    return q > 0 ? Math.max(0, q - paid) : 0;
+  }, [form.quotationAmount, form.amount, editingId, editingExpense]);
 
   const cards = useMemo(
     () => [
       ['Collected', inr(summary?.collected), 'text-emerald-600', `${summary?.collectedCount || 0} paid`],
-      ['Spent', inr(summary?.spent), 'text-rose-600', `${summary?.expenseCount || 0} entries`],
+      ['Spent (paid)', inr(summary?.spent), 'text-rose-600', `${summary?.expenseCount || 0} entries`],
       [
         'Balance left',
         inr(summary?.balance),
         balanceNegative ? 'text-rose-600' : 'text-indigo-600',
-        balanceNegative ? 'Over budget!' : 'Available',
+        balanceNegative ? 'Over budget!' : 'Available now',
+      ],
+      [
+        'Outstanding',
+        inr(summary?.outstanding),
+        (summary?.outstanding || 0) > 0 ? 'text-amber-600' : 'text-slate-400',
+        'Still owed to vendors',
       ],
     ],
     [summary, balanceNegative],
@@ -161,24 +546,27 @@ export default function FinancePanel() {
 
   const setField = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
-  const onPickProof = async (file) => {
+  const onPickImage = async (file, field, setBusy) => {
     if (!file) return;
-    setProofBusy(true);
+    setBusy(true);
     setError('');
     try {
       const dataUrl = await compressImage(file, { maxDim: 1200, quality: 0.7 });
-      setField('proof', dataUrl);
+      setField(field, dataUrl);
     } catch (err) {
       setError(apiError(err, 'Could not process that image'));
     } finally {
-      setProofBusy(false);
+      setBusy(false);
     }
   };
+  const onPickProof = (file) => onPickImage(file, 'proof', setProofBusy);
+  const onPickQuote = (file) => onPickImage(file, 'quotationProof', setQuoteBusy);
 
   const openAdd = () => {
     setEditingId(null);
     // Default the fund to the first configured one for convenience.
-    setForm({ ...EMPTY_FORM, bucket: data?.bucketNames?.[0] || '' });
+    const def = data?.bucketNames?.[0] || '';
+    setForm({ ...EMPTY_FORM, bucket: def, paymentBucket: def });
     setShowForm(true);
   };
 
@@ -187,15 +575,19 @@ export default function FinancePanel() {
     setForm({
       description: e.description || '',
       category: e.category || 'Miscellaneous',
-      amount: String(e.amount ?? ''),
+      quotationAmount: e.quotationAmount ? String(e.quotationAmount) : '',
+      // Blank — this field records a NEW payment on edit, not the running total.
+      amount: '',
       bucket: e.bucket || '',
+      paymentBucket: e.bucket || '',
       paidBy: e.paidBy || '',
       paidTo: e.paidTo || '',
       paymentMethod: e.paymentMethod || 'cash',
       spentAt: e.spentAt ? new Date(e.spentAt).toISOString().slice(0, 10) : '',
       note: e.note || '',
-      // Leave proof null in edit mode → unchanged unless a new file is picked.
+      // Leave proofs null in edit mode → unchanged unless a new file is picked.
       proof: null,
+      quotationProof: null,
     });
     setShowForm(true);
   };
@@ -211,32 +603,52 @@ export default function FinancePanel() {
     setError('');
     if (!form.description.trim()) return setError('Please enter what the money was spent on');
     if (!form.bucket.trim()) return setError('Please choose which fund the money was paid from');
-    if (!(Number(form.amount) >= 0) || form.amount === '') return setError('Please enter a valid amount');
-    // UPI spends must have a receipt. On edit, an already-attached receipt counts.
-    if (form.paymentMethod === 'upi' && !form.proof && !editingHasProof) {
-      return setError('A payment proof (receipt screenshot) is required for UPI payments');
+
+    // An optional payment can be recorded inline (the "Advance / payment" /
+    // "Add a payment" field) on both create and edit.
+    const payAmount = Number(form.amount) || 0;
+    if (payAmount > 0 && form.paymentMethod === 'upi' && !form.proof) {
+      return setError('A receipt is required for a UPI payment');
     }
+
+    // Metadata common to create + edit.
+    const meta = {
+      description: form.description.trim(),
+      category: form.category.trim() || 'Other',
+      quotationAmount: Number(form.quotationAmount) || 0,
+      bucket: form.bucket.trim() || null,
+      // Default "who paid" to the fund holder when not separately specified.
+      paidBy: form.paidBy.trim() || form.bucket.trim(),
+      paidTo: form.paidTo.trim() || null,
+      spentAt: form.spentAt || undefined,
+      note: form.note.trim() || null,
+    };
+    if (form.quotationProof) meta.quotationProof = form.quotationProof;
 
     setSaving(true);
     try {
-      const payload = {
-        description: form.description.trim(),
-        category: form.category.trim() || 'Other',
-        amount: Number(form.amount),
-        bucket: form.bucket.trim() || null,
-        // Default "who paid" to the fund holder when not separately specified.
-        paidBy: form.paidBy.trim() || form.bucket.trim(),
-        paidTo: form.paidTo.trim() || null,
-        paymentMethod: form.paymentMethod,
-        spentAt: form.spentAt || undefined,
-        note: form.note.trim() || null,
-      };
-      // Only send proof when a new image was picked (null = leave unchanged).
-      if (form.proof) payload.proof = form.proof;
-
       if (editingId) {
-        await api.patch(`/api/admin/finance/expenses/${editingId}`, payload);
+        // Update metadata, then record the extra payment (if any) as a new
+        // installment on the existing expense.
+        await api.patch(`/api/admin/finance/expenses/${editingId}`, meta);
+        if (payAmount > 0) {
+          await api.post(`/api/admin/finance/expenses/${editingId}/payments`, {
+            amount: payAmount,
+            method: form.paymentMethod,
+            bucket: form.paymentBucket || form.bucket || null,
+            paidAt: form.spentAt || undefined,
+            proof: form.proof || undefined,
+          });
+        }
       } else {
+        // Create the expense; its initial payment (if any) is recorded inline.
+        const payload = { ...meta };
+        if (payAmount > 0) {
+          payload.amount = payAmount;
+          payload.paymentMethod = form.paymentMethod;
+          payload.paymentBucket = form.paymentBucket || form.bucket || null;
+          if (form.proof) payload.proof = form.proof;
+        }
         await api.post('/api/admin/finance/expenses', payload);
       }
       await load();
@@ -301,6 +713,28 @@ export default function FinancePanel() {
     }
   };
 
+  const togglePublish = async () => {
+    const next = !data?.financePublic;
+    if (
+      next &&
+      !window.confirm(
+        'Publish the accounts on the public landing page? Everyone will see the quotation, paid and due per expense, plus the collected/spent/balance totals (no receipts, funds or names).',
+      )
+    ) {
+      return;
+    }
+    setPublishing(true);
+    setError('');
+    try {
+      await api.patch('/api/admin/finance/publish', { published: next });
+      await load();
+    } catch (err) {
+      setError(apiError(err, 'Could not update publish state'));
+    } finally {
+      setPublishing(false);
+    }
+  };
+
   const remove = async (e) => {
     if (!window.confirm(`Delete expense "${e.description}" (${inr(e.amount)})? This cannot be undone.`)) {
       return;
@@ -323,6 +757,28 @@ export default function FinancePanel() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {!loading && (
+            <button
+              type="button"
+              onClick={togglePublish}
+              disabled={publishing}
+              className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold ring-1 transition disabled:opacity-50 ${
+                data?.financePublic
+                  ? 'bg-emerald-50 text-emerald-700 ring-emerald-200 hover:bg-emerald-100'
+                  : 'bg-slate-100 text-slate-600 ring-slate-200 hover:bg-slate-200'
+              }`}
+              title="Show or hide the public accounts panel on the landing page"
+            >
+              <span
+                className={`h-2 w-2 rounded-full ${data?.financePublic ? 'bg-emerald-500' : 'bg-slate-400'}`}
+              />
+              {publishing
+                ? 'Saving…'
+                : data?.financePublic
+                ? 'Accounts: Published'
+                : 'Accounts: Hidden'}
+            </button>
+          )}
           <button
             type="button"
             onClick={openFunds}
@@ -350,8 +806,8 @@ export default function FinancePanel() {
         <div className="py-8 text-center text-sm text-slate-400">Loading finances…</div>
       ) : (
         <>
-          {/* Collected / Spent / Balance */}
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          {/* Collected / Spent / Balance / Outstanding */}
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             {cards.map(([label, value, accent, sub]) => (
               <div key={label} className="rounded-xl border border-slate-200 p-4 text-center">
                 <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">
@@ -362,6 +818,19 @@ export default function FinancePanel() {
               </div>
             ))}
           </div>
+
+          {(summary?.outstanding || 0) > 0 && (
+            <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
+              After clearing all vendor dues ({inr(summary.outstanding)}), the projected balance
+              would be{' '}
+              <span
+                className={`font-bold ${summary.balanceAfterDues < 0 ? 'text-rose-600' : 'text-indigo-600'}`}
+              >
+                {inr(summary.balanceAfterDues)}
+              </span>
+              .
+            </div>
+          )}
 
           {balanceNegative && (
             <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700">
@@ -594,7 +1063,44 @@ export default function FinancePanel() {
                   )}
                 </label>
                 <label className="block text-sm">
-                  <span className="mb-1 block font-medium text-slate-600">Amount (₹) *</span>
+                  <span className="mb-1 block font-medium text-slate-600">
+                    Quotation amount (₹){' '}
+                    <span className="font-normal text-slate-400">agreed price</span>
+                  </span>
+                  <input
+                    type="number"
+                    min={0}
+                    value={form.quotationAmount}
+                    onChange={(e) => setField('quotationAmount', e.target.value)}
+                    placeholder="0"
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-ink-950 focus:outline-none"
+                  />
+                </label>
+                {editingId && (
+                  <label className="block text-sm">
+                    <span className="mb-1 block font-medium text-slate-600">Total paid so far (₹)</span>
+                    <input
+                      type="text"
+                      readOnly
+                      value={inr(editingExpense?.amount || 0)}
+                      className="w-full rounded-lg border border-slate-200 bg-slate-100 px-3 py-2 text-sm font-semibold text-rose-600"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setPaymentsFor(editingId)}
+                      className="mt-1 text-xs font-semibold text-indigo-600 hover:underline"
+                    >
+                      💳 Manage payments ({editingExpense?.paymentCount || 0}) — view / delete installments
+                    </button>
+                  </label>
+                )}
+                <label className="block text-sm">
+                  <span className="mb-1 block font-medium text-slate-600">
+                    {editingId ? 'Add a payment (₹)' : 'Advance / payment (₹)'}{' '}
+                    <span className="font-normal text-slate-400">
+                      {editingId ? 'optional — records a new payment' : 'optional — reduces outstanding'}
+                    </span>
+                  </span>
                   <input
                     type="number"
                     min={0}
@@ -603,9 +1109,50 @@ export default function FinancePanel() {
                     placeholder="0"
                     className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-ink-950 focus:outline-none"
                   />
+                  <span className="text-xs text-slate-400">
+                    Each amount you enter is logged as a dated payment with its own receipt.
+                  </span>
                 </label>
                 <label className="block text-sm">
-                  <span className="mb-1 block font-medium text-slate-600">Paid from (fund) *</span>
+                  <span className="mb-1 block font-medium text-slate-600">
+                    Paid from (this payment){' '}
+                    <span className="font-normal text-slate-400">which fund it comes out of</span>
+                  </span>
+                  <select
+                    value={form.paymentBucket}
+                    onChange={(e) => setField('paymentBucket', e.target.value)}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-ink-950 focus:outline-none"
+                  >
+                    <option value="">Use default fund</option>
+                    {(data?.bucketNames || []).map((n) => (
+                      <option key={n} value={n}>
+                        {n}
+                      </option>
+                    ))}
+                  </select>
+                  {Number(form.amount) > 0 && paymentFund && (
+                    <span
+                      className={`text-xs ${paymentFund.balance < 0 ? 'text-rose-600' : 'text-slate-500'}`}
+                    >
+                      Available in {paymentFund.name}:{' '}
+                      <span className="font-semibold">{inr(paymentFund.balance)}</span>
+                    </span>
+                  )}
+                </label>
+                <label className="block text-sm">
+                  <span className="mb-1 block font-medium text-slate-600">Outstanding (₹)</span>
+                  <input
+                    type="text"
+                    readOnly
+                    value={Number(form.quotationAmount) > 0 ? inr(formOutstanding) : '—'}
+                    className={`w-full rounded-lg border border-slate-200 bg-slate-100 px-3 py-2 text-sm font-semibold ${formOutstanding > 0 ? 'text-amber-600' : 'text-slate-500'}`}
+                  />
+                  <span className="text-xs text-slate-400">Quotation − total paid (auto)</span>
+                </label>
+                <label className="block text-sm">
+                  <span className="mb-1 block font-medium text-slate-600">
+                    Default fund * <span className="font-normal text-slate-400">for payments</span>
+                  </span>
                   <select
                     value={form.bucket}
                     onChange={(e) => setField('bucket', e.target.value)}
@@ -622,9 +1169,8 @@ export default function FinancePanel() {
                     <span
                       className={`text-xs ${selectedFund.balance < 0 ? 'text-rose-600' : 'text-slate-500'}`}
                     >
-                      Available in {selectedFund.name}:{' '}
+                      {selectedFund.name}: available{' '}
                       <span className="font-semibold">{inr(selectedFund.balance)}</span>
-                      {' '}(collected {inr(selectedFund.collected)} − spent {inr(selectedFund.spent)})
                     </span>
                   )}
                 </label>
@@ -649,7 +1195,9 @@ export default function FinancePanel() {
                   />
                 </label>
                 <label className="block text-sm">
-                  <span className="mb-1 block font-medium text-slate-600">Method</span>
+                  <span className="mb-1 block font-medium text-slate-600">
+                    Method <span className="font-normal text-slate-400">of this payment</span>
+                  </span>
                   <select
                     value={form.paymentMethod}
                     onChange={(e) => setField('paymentMethod', e.target.value)}
@@ -673,8 +1221,8 @@ export default function FinancePanel() {
                 </label>
                 <label className="block text-sm">
                   <span className="mb-1 block font-medium text-slate-600">
-                    Receipt / proof {proofRequired ? '*' : ''}{' '}
-                    {editingId ? <span className="font-normal text-slate-400">(pick to replace)</span> : ''}
+                    Receipt {proofRequired && Number(form.amount) > 0 ? '*' : ''}{' '}
+                    <span className="font-normal text-slate-400">for this payment</span>
                   </span>
                   <input
                     type="file"
@@ -686,11 +1234,36 @@ export default function FinancePanel() {
                   {form.proof && !proofBusy && (
                     <span className="text-xs font-medium text-emerald-600">✓ Receipt attached</span>
                   )}
-                  {!form.proof && !proofBusy && editingHasProof && (
-                    <span className="text-xs text-slate-400">Existing receipt kept</span>
-                  )}
-                  {proofRequired && !form.proof && !editingHasProof && !proofBusy && (
+                  {proofRequired && Number(form.amount) > 0 && !form.proof && !proofBusy && (
                     <span className="text-xs text-amber-600">Required for UPI payments</span>
+                  )}
+                </label>
+                <label className="block text-sm">
+                  <span className="mb-1 flex items-center gap-2 font-medium text-slate-600">
+                    Quotation document{' '}
+                    {editingId && <span className="font-normal text-slate-400">(pick to replace)</span>}
+                    {editingId && editingHasQuote && (
+                      <button
+                        type="button"
+                        onClick={() => setProofView({ id: editingId, kind: 'quotation' })}
+                        className="rounded-lg px-2 py-0.5 text-xs font-semibold text-indigo-600 hover:bg-indigo-50"
+                      >
+                        📄 View current
+                      </button>
+                    )}
+                  </span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => onPickQuote(e.target.files?.[0])}
+                    className="w-full text-sm text-slate-600 file:mr-2 file:rounded-lg file:border-0 file:bg-ink-950 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-ink-800"
+                  />
+                  {quoteBusy && <span className="text-xs text-slate-400">Processing image…</span>}
+                  {form.quotationProof && !quoteBusy && (
+                    <span className="text-xs font-medium text-emerald-600">✓ Quotation attached</span>
+                  )}
+                  {!form.quotationProof && !quoteBusy && editingHasQuote && (
+                    <span className="text-xs text-slate-400">Existing quotation kept</span>
                   )}
                 </label>
               </div>
@@ -707,7 +1280,7 @@ export default function FinancePanel() {
               <div className="flex items-center gap-2">
                 <button
                   type="submit"
-                  disabled={saving || proofBusy}
+                  disabled={saving || proofBusy || quoteBusy}
                   className="rounded-xl bg-emerald-600 px-5 py-2 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-50"
                 >
                   {saving ? 'Saving…' : editingId ? 'Save changes' : 'Add expense'}
@@ -740,8 +1313,8 @@ export default function FinancePanel() {
                     <th className="px-2 py-2">Paid by</th>
                     <th className="px-2 py-2">Paid to</th>
                     <th className="px-2 py-2">Method</th>
-                    <th className="px-2 py-2 text-right">Amount</th>
-                    <th className="px-2 py-2 text-center">Proof</th>
+                    <th className="px-2 py-2 text-right">Paid / Quote</th>
+                    <th className="px-2 py-2 text-center">Docs</th>
                     <th className="px-2 py-2 text-right">Actions</th>
                   </tr>
                 </thead>
@@ -754,33 +1327,62 @@ export default function FinancePanel() {
                         {e.note && <div className="text-xs text-slate-400">{e.note}</div>}
                       </td>
                       <td className="px-2 py-2">
-                        {e.bucket ? (
-                          <span className="inline-block rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-semibold text-indigo-700">
-                            {e.bucket}
-                          </span>
-                        ) : (
-                          <span className="text-xs text-slate-300">—</span>
-                        )}
+                        {(() => {
+                          const funds = [
+                            ...new Set((e.payments || []).map((p) => p.bucket).filter(Boolean)),
+                          ];
+                          const show = funds.length ? funds : e.bucket ? [e.bucket] : [];
+                          if (show.length === 0) return <span className="text-xs text-slate-300">—</span>;
+                          return (
+                            <div className="flex flex-wrap gap-1">
+                              {show.map((b) => (
+                                <span
+                                  key={b}
+                                  className="inline-block rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-semibold text-indigo-700"
+                                >
+                                  {b}
+                                </span>
+                              ))}
+                            </div>
+                          );
+                        })()}
                       </td>
                       <td className="px-2 py-2 text-slate-600">{e.category}</td>
                       <td className="px-2 py-2 text-slate-600">{e.paidBy}</td>
                       <td className="px-2 py-2 text-slate-500">{e.paidTo || '—'}</td>
                       <td className="px-2 py-2 text-slate-500">{METHOD_LABEL[e.paymentMethod] || e.paymentMethod}</td>
-                      <td className="px-2 py-2 text-right font-bold text-rose-600 whitespace-nowrap">
-                        {inr(e.amount)}
+                      <td className="px-2 py-2 text-right whitespace-nowrap">
+                        <div className="font-bold text-rose-600">{inr(e.amount)}</div>
+                        {e.quotationAmount > 0 && (
+                          <div className="text-[11px] text-slate-400">of {inr(e.quotationAmount)}</div>
+                        )}
+                        {e.outstanding > 0 && (
+                          <div className="text-[11px] font-semibold text-amber-600">
+                            Due {inr(e.outstanding)}
+                          </div>
+                        )}
+
                       </td>
-                      <td className="px-2 py-2 text-center">
-                        {e.hasProof ? (
+                      <td className="px-2 py-2 text-center whitespace-nowrap">
+                        <div className="flex flex-col items-center gap-1">
                           <button
                             type="button"
-                            onClick={() => setProofView(e.id)}
-                            className="rounded-lg px-2 py-1 text-xs font-semibold text-indigo-600 hover:bg-indigo-50"
+                            onClick={() => setPaymentsFor(e.id)}
+                            className="rounded-lg px-2 py-0.5 text-xs font-semibold text-indigo-600 hover:bg-indigo-50"
+                            title="View / add payments and their receipts"
                           >
-                            🧾 View
+                            💳 Payments ({e.paymentCount || 0})
                           </button>
-                        ) : (
-                          <span className="text-xs text-slate-300">none</span>
-                        )}
+                          {e.hasQuotationProof && (
+                            <button
+                              type="button"
+                              onClick={() => setProofView({ id: e.id, kind: 'quotation' })}
+                              className="rounded-lg px-2 py-0.5 text-xs font-semibold text-slate-600 hover:bg-slate-100"
+                            >
+                              📄 Quote
+                            </button>
+                          )}
+                        </div>
                       </td>
                       <td className="px-2 py-2 text-right whitespace-nowrap">
                         <button
@@ -816,7 +1418,17 @@ export default function FinancePanel() {
         </>
       )}
 
-      {proofView && <ProofModal id={proofView} onClose={() => setProofView(null)} />}
+      {proofView && (
+        <ProofModal id={proofView.id} kind={proofView.kind} onClose={() => setProofView(null)} />
+      )}
+      {paymentsFor && data?.expenses?.find((e) => e.id === paymentsFor) && (
+        <PaymentsModal
+          expense={data.expenses.find((e) => e.id === paymentsFor)}
+          bucketNames={data.bucketNames || []}
+          onChanged={load}
+          onClose={() => setPaymentsFor(null)}
+        />
+      )}
     </div>
   );
 }
