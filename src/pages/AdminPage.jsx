@@ -179,6 +179,7 @@ export default function AdminPage() {
   const [teeCollFilter, setTeeCollFilter] = useState('all'); // all | yes | no
   const [souvenirFilter, setSouvenirFilter] = useState('all'); // all | yes | no
   const [teeFilter, setTeeFilter] = useState('all'); // all | mens | womens | nosize
+  const [sizeFilter, setSizeFilter] = useState('all'); // all | XS | S | M | L | XL | XXL
   const [methodFilter, setMethodFilter] = useState('all'); // all | <paymentMethodUsed value>
   const [attendanceFilter, setAttendanceFilter] = useState('all'); // all | yes | maybe | no
   const [emailsCopied, setEmailsCopied] = useState(0); // count of emails copied, for feedback
@@ -473,6 +474,8 @@ export default function AdminPage() {
         if (teeFilter === 'mens' && r.tshirtFit === 'womens') return false;
         if (teeFilter === 'nosize' && r.tshirtSize) return false;
       }
+      if (exclude !== 'size' && sizeFilter !== 'all' && (r.tshirtSize || '') !== sizeFilter)
+        return false;
       if (
         exclude !== 'method' &&
         methodFilter !== 'all' &&
@@ -489,7 +492,7 @@ export default function AdminPage() {
       }
       return true;
     },
-    [query, payFilter, checkinFilter, teeCollFilter, souvenirFilter, teeFilter, methodFilter, attendanceFilter],
+    [query, payFilter, checkinFilter, teeCollFilter, souvenirFilter, teeFilter, sizeFilter, methodFilter, attendanceFilter],
   );
 
   // Counts per payment status (narrowed by every OTHER active filter).
@@ -559,6 +562,16 @@ export default function AdminPage() {
     return c;
   }, [records, passes]);
 
+  // T-shirt size filter counts (narrowed by every OTHER active filter).
+  const sizeCounts = useMemo(() => {
+    const base = records.filter((r) => passes(r, 'size'));
+    const c = { all: base.length, XS: 0, S: 0, M: 0, L: 0, XL: 0, XXL: 0 };
+    for (const r of base) {
+      if (r.tshirtSize && c[r.tshirtSize] !== undefined) c[r.tshirtSize] += 1;
+    }
+    return c;
+  }, [records, passes]);
+
   const filtered = useMemo(() => {
     // Apply every active filter (no exclusions) using the shared predicate.
     const rows = records.filter((r) => passes(r, null));
@@ -605,7 +618,7 @@ export default function AdminPage() {
   // Reset to the first page whenever the filters change.
   useEffect(() => {
     setPage(1);
-  }, [query, payFilter, checkinFilter, teeFilter, methodFilter, attendanceFilter, teeCollFilter, souvenirFilter]);
+  }, [query, payFilter, checkinFilter, teeFilter, sizeFilter, methodFilter, attendanceFilter, teeCollFilter, souvenirFilter]);
 
   // Download the CSV through axios so the auth header is attached, then
   // trigger a browser download from the blob.
@@ -1134,6 +1147,39 @@ export default function AdminPage() {
               <span
                 className={`rounded-full px-1.5 py-0.5 text-[10px] tabular-nums ${
                   teeFilter === value ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'
+                }`}
+              >
+                {count}
+              </span>
+            </button>
+          ))}
+        </div>
+
+        {/* T-shirt size filter */}
+        <div className="flex flex-wrap gap-2">
+          {[
+            ['all', '📏 All sizes', sizeCounts.all],
+            ['XS', 'XS', sizeCounts.XS],
+            ['S', 'S', sizeCounts.S],
+            ['M', 'M', sizeCounts.M],
+            ['L', 'L', sizeCounts.L],
+            ['XL', 'XL', sizeCounts.XL],
+            ['XXL', 'XXL', sizeCounts.XXL],
+          ].map(([value, label, count]) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setSizeFilter(value)}
+              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                sizeFilter === value
+                  ? 'border-teal-600 bg-teal-600 text-white'
+                  : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50'
+              }`}
+            >
+              {label}
+              <span
+                className={`rounded-full px-1.5 py-0.5 text-[10px] tabular-nums ${
+                  sizeFilter === value ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'
                 }`}
               >
                 {count}
