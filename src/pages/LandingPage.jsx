@@ -575,6 +575,74 @@ function AccountsPanel() {
   );
 }
 
+// Dismissible alert nudging members to set/confirm their T-shirt size, with the
+// chest-size guide. Dismissal is remembered in localStorage so it won't nag.
+function SizeGuideBanner({ user }) {
+  const [hidden, setHidden] = useState(() => {
+    try {
+      return localStorage.getItem('gt_size_banner_dismissed') === '1';
+    } catch {
+      return false;
+    }
+  });
+  if (hidden) return null;
+
+  const SIZES = [
+    ['M', '38"'],
+    ['L', '40"'],
+    ['XL', '42"'],
+    ['XXL', '44"'],
+  ];
+  const dismiss = () => {
+    try {
+      localStorage.setItem('gt_size_banner_dismissed', '1');
+    } catch {
+      /* ignore */
+    }
+    setHidden(true);
+  };
+
+  return (
+    <section>
+      <div className="relative overflow-hidden rounded-2xl border border-amber-300 bg-amber-50 p-5">
+        <button
+          type="button"
+          onClick={dismiss}
+          aria-label="Dismiss"
+          className="absolute right-3 top-3 rounded-full px-2 py-0.5 text-sm font-bold text-amber-500 hover:bg-amber-100"
+        >
+          ✕
+        </button>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <div className="text-sm font-extrabold uppercase tracking-wide text-amber-700">
+              👕 Please confirm your T-shirt size
+            </div>
+            <p className="mt-1 text-sm text-amber-800">
+              T-shirts are being ordered — make sure your size is updated. Approximate chest sizes:
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {SIZES.map(([size, chest]) => (
+                <span
+                  key={size}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-amber-300 bg-white px-3 py-1 text-sm font-semibold text-amber-800"
+                >
+                  <span className="font-extrabold">{size}</span>
+                  <span className="text-amber-500">·</span>
+                  <span>{chest}</span>
+                </span>
+              ))}
+            </div>
+          </div>
+          <Link to={user ? '/dashboard' : '/login'} className="btn-accent shrink-0">
+            {user ? 'Update my size' : 'Log in to update'}
+          </Link>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function FilterChip({ label, count, active, onClick }) {
   return (
     <button
@@ -736,6 +804,9 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
+
+      {/* T-shirt size reminder (dismissible) */}
+      <SizeGuideBanner user={user} />
 
       {/* Photo gallery - college memories */}
       <Gallery />
