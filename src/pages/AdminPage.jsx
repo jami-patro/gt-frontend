@@ -118,6 +118,9 @@ async function downloadPassWithName(id, name) {
 }
 const TSHIRT_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL'];
 
+// Approximate chest size (inches) per T-shirt size, for the ordering list.
+const SIZE_CHEST = { M: '38', L: '40', XL: '42', XXL: '44' };
+
 const ATTEND_BADGE = {
   yes: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
   maybe: 'bg-amber-50 text-amber-700 ring-amber-200',
@@ -183,6 +186,7 @@ export default function AdminPage() {
   const [methodFilter, setMethodFilter] = useState('all'); // all | <paymentMethodUsed value>
   const [attendanceFilter, setAttendanceFilter] = useState('all'); // all | yes | maybe | no
   const [emailsCopied, setEmailsCopied] = useState(0); // count of emails copied, for feedback
+  const [mailPreset, setMailPreset] = useState(null); // { emails:[], nonce } -> preloads the composer
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 10;
   const [editingId, setEditingId] = useState(null); // row id being edited inline
@@ -674,6 +678,67 @@ export default function AdminPage() {
     }
   };
 
+  // Download the CURRENT filtered view as a lean CSV: Name, Branch, Contact,
+  // T-Shirt Size, Fit. Built client-side so it respects every active filter
+  // (size, Men's/Women's, paid, etc.) exactly as shown.
+  const downloadFilteredList = () => {
+    if (filtered.length === 0) {
+      setError('No one in the current filter to export');
+      return;
+    }
+    const esc = (v) => {
+      const s = v === null || v === undefined ? '' : String(v);
+      const cleaned = s.replace(/[\r\n\t]+/g, ' ').trim();
+      return /[",]/.test(cleaned) ? `"${cleaned.replace(/"/g, '""')}"` : cleaned;
+    };
+    const headers = ['Name', 'Branch', 'Contact', 'T-Shirt Size', 'Chest (in)', 'Fit'];
+    const lines = [headers.join(',')];
+    for (const r of filtered) {
+      lines.push(
+        [
+          r.name,
+          r.branch || '',
+          r.phone || '',
+          r.tshirtSize || '',
+          SIZE_CHEST[r.tshirtSize] || '',
+          r.tshirtFit === 'womens' ? "Women's" : "Men's",
+        ]
+          .map(esc)
+          .join(','),
+      );
+    }
+    const csv = lines.join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    // Name the file after the active size/fit so downloads are easy to tell apart.
+    const tag = [
+      sizeFilter !== 'all' ? sizeFilter : null,
+      teeFilter === 'mens' ? 'mens' : teeFilter === 'womens' ? 'womens' : null,
+    ]
+      .filter(Boolean)
+      .join('-');
+    a.download = `tshirt-list${tag ? `-${tag}` : ''}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // Load everyone in the CURRENT filtered view (Paid + Men's + size, etc. all
+  // AND-ed) into the email composer, then jump to it. This is how you email an
+  // intersection — the composer's own quick-add tags only ADD groups (union).
+  const emailFilteredList = () => {
+    const emails = filtered.filter((r) => r.email).map((r) => r.email);
+    if (emails.length === 0) {
+      setError('No one with an email in the current filter');
+      return;
+    }
+    setMailPreset({ emails, nonce: Date.now() });
+    setTimeout(() => {
+      document.getElementById('email-batch')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 50);
+  };
+
   // Download a guest's pass QR as a PNG (e.g. when their phone/email isn't
   // working, so they can photograph it at the desk).
   const downloadPass = async (id, name) => {
@@ -764,6 +829,20 @@ export default function AdminPage() {
             title="Copy name, branch, email and phone for everyone in the current filter (tab-separated, one per line)"
           >
             {emailsCopied ? `✓ Copied ${emailsCopied}` : `✉ Copy contacts (${filtered.length})`}
+          </button>
+          <button
+            onClick={downloadFilteredList}
+            className="btn bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50"
+            title="Download Name, Branch, Contact, Size & Fit for everyone in the current filter (CSV)"
+          >
+            📏 T-shirt list ({filtered.length})
+          </button>
+          <button
+            onClick={emailFilteredList}
+            className="btn bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50"
+            title="Load everyone in the current filter into the email composer (respects Paid + Men's/Women's + size together)"
+          >
+            ✉ Email these ({filtered.length})
           </button>
           <button
             onClick={downloadCheckinSheet}
@@ -1161,10 +1240,10 @@ export default function AdminPage() {
             ['all', '📏 All sizes', sizeCounts.all],
             ['XS', 'XS', sizeCounts.XS],
             ['S', 'S', sizeCounts.S],
-            ['M', 'M', sizeCounts.M],
-            ['L', 'L', sizeCounts.L],
-            ['XL', 'XL', sizeCounts.XL],
-            ['XXL', 'XXL', sizeCounts.XXL],
+            ['M', `M · 38"`, sizeCounts.M],
+            ['L', `L · 40"`, sizeCounts.L],
+            ['XL', `XL · 42"`, sizeCounts.XL],
+            ['XXL', `XXL · 44"`, sizeCounts.XXL],
           ].map(([value, label, count]) => (
             <button
               key={value}
@@ -1704,7 +1783,7 @@ export default function AdminPage() {
         </div>
       )}
 
-      <EmailBroadcast records={records} />
+      <EmailBroadcast records={records} preset={mailPreset} />
     </div>
   );
 }
@@ -1769,7 +1848,7 @@ function RsvpConfirmationResend({ enabled }) {
   );
 }
 
-function EmailBroadcast({ records }) {
+function EmailBroadcast({ records, preset }) {
   const [status, setStatus] = useState(null);
   const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('');
@@ -1786,6 +1865,16 @@ function EmailBroadcast({ records }) {
       .then((r) => setStatus(r.data))
       .catch(() => setStatus({ enabled: false }));
   }, []);
+
+  // When the dashboard sends a filtered set ("✉ Email these"), replace the
+  // selection with exactly those people and show only them.
+  useEffect(() => {
+    if (preset?.emails) {
+      setSelected(new Set(preset.emails));
+      setShowSelectedOnly(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [preset?.nonce]);
 
   // Everyone with an email is a possible recipient.
   const people = useMemo(
@@ -1902,7 +1991,7 @@ function EmailBroadcast({ records }) {
   );
 
   return (
-    <div className="card space-y-4">
+    <div id="email-batch" className="card space-y-4 scroll-mt-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-lg font-bold text-slate-900">📣 Email the batch</h2>
         {status && (
@@ -1961,6 +2050,27 @@ function EmailBroadcast({ records }) {
           <Tag label="♀ Women's tee" emails={emailsWhere((p) => p.tshirtFit === 'womens')} />
           {/* People who haven't picked a T-shirt size yet — nudge them. */}
           <Tag label="❓ No tee size" emails={emailsWhere((p) => !p.tshirtSize)} />
+          {/* T-shirt size groups (chest size noted) — all fits. */}
+          {['M', 'L', 'XL', 'XXL'].map((sz) => (
+            <Tag
+              key={`sz-${sz}`}
+              label={`${sz}${SIZE_CHEST[sz] ? ` · ${SIZE_CHEST[sz]}"` : ''}`}
+              emails={emailsWhere((p) => p.tshirtSize === sz)}
+            />
+          ))}
+          {/* Fit + size combos — target exactly e.g. Men's L / Women's XL. */}
+          {['M', 'L', 'XL', 'XXL'].flatMap((sz) => [
+            <Tag
+              key={`m-${sz}`}
+              label={`♂ ${sz}`}
+              emails={emailsWhere((p) => p.tshirtSize === sz && (p.tshirtFit || 'mens') !== 'womens')}
+            />,
+            <Tag
+              key={`w-${sz}`}
+              label={`♀ ${sz}`}
+              emails={emailsWhere((p) => p.tshirtSize === sz && p.tshirtFit === 'womens')}
+            />,
+          ])}
           {/* Event-day pickup follow-ups — reach out to collect tee/souvenir. */}
           <Tag label="👕 Tee not collected" emails={emailsWhere((p) => !p.eventPass?.tshirt)} />
           <Tag label="🎁 Souvenir not collected" emails={emailsWhere((p) => !p.eventPass?.souvenir)} />
